@@ -1,0 +1,13 @@
+{
+  "name": "executor-kingjo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Executor Kingjo - toolkit pribadi",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^45.2.3"
+  }
+}

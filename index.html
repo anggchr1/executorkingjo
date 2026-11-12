@@ -1,0 +1,1743 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>Executor Kingjo</title>
+<style>
+  * { box-sizing: border-box; }
+  :root {
+    --bg: #0e1013; --side: #12151a; --panel: #14181e; --panel2: #1a1f27; --line: #232a35;
+    --text: #e6e9ef; --muted: #8b93a1; --dim: #6b7382; --accent: #6c5ce7;
+  }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg); color: var(--text); overflow: hidden;
+    font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+    font-size: 13px; user-select: none;
+  }
+  .win { height: 100%; display: flex; }
+
+  .side {
+    width: 172px; flex: 0 0 172px; background: var(--side); border-right: 1px solid #1f242b;
+    padding: 18px 12px; display: flex; flex-direction: column; gap: 4px;
+  }
+  .brand { font-weight: 650; font-size: 14px; letter-spacing: .2px; padding: 0 10px 16px; }
+  .brand span { color: color-mix(in srgb, var(--accent) 70%, white); }
+  .nav {
+    padding: 8px 10px; border-radius: 8px; color: #9aa3b2; font-size: 12.5px;
+  }
+  .nav.on { background: #1d2230; color: var(--text); box-shadow: inset 0 0 0 1px #2b3342; }
+  .nav[data-view] { cursor: pointer; }
+  .nav[data-view]:hover:not(.on) { color: var(--text); background: #171b22; }
+  .navlabel {
+    font-size: 10px; letter-spacing: .8px; text-transform: uppercase; font-weight: 600;
+    color: #565e6c; padding: 14px 10px 6px;
+  }
+  .sp { flex: 1; }
+  .ver { font-size: 10.5px; color: #565e6c; padding: 0 10px; }
+
+  .view { display: none; }
+  .view.on { display: flex; flex-direction: column; gap: 12px; flex: 1; min-height: 0; }
+  #v-main, #v-system { overflow-y: auto; padding-right: 2px; }
+  #v-main::-webkit-scrollbar, #v-system::-webkit-scrollbar { width: 8px; }
+  #v-main::-webkit-scrollbar-thumb, #v-system::-webkit-scrollbar-thumb { background: #262d38; border-radius: 4px; }
+
+  .dash { display: flex; gap: 10px; flex-wrap: wrap; }
+  .dash .card { flex: 1 1 170px; gap: 5px; }
+  .dc-title { font-size: 10.5px; letter-spacing: .6px; text-transform: uppercase; color: var(--dim); }
+  .dc-value { font-size: 20px; font-weight: 650; }
+  .dc-meta { font-size: 11.5px; color: var(--dim); min-height: 16px; }
+  .dash .ghost { align-self: flex-start; margin-top: 6px; }
+
+  .hero {
+    border-radius: 12px; border: 1px solid color-mix(in srgb, var(--accent) 30%, #141821); padding: 16px 18px;
+    background: radial-gradient(130% 160% at 0% 0%, color-mix(in srgb, var(--accent) 22%, #141821) 0%, #141821 58%);
+  }
+  .hero-hi { font-size: 19px; font-weight: 650; letter-spacing: .2px; }
+  .hero-hi span { color: color-mix(in srgb, var(--accent) 65%, white); }
+  .hero-sub { font-size: 11.5px; color: var(--muted); margin-top: 3px; }
+  .hero-info { font-size: 11.5px; color: var(--dim); margin-top: 9px; }
+  .hero-info b { color: var(--text); font-weight: 600; }
+
+  .pbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .slot {
+    display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--dim);
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 5px 6px 5px 10px;
+  }
+  .slot b { color: var(--text); font-weight: 600; font-size: 11.5px; }
+  .slot em { font-style: normal; color: #565e6c; font-size: 10.5px; }
+  .slot .mini {
+    font: inherit; font-size: 10.5px; padding: 3px 8px; border-radius: 5px; cursor: pointer;
+    background: #0f1319; border: 1px solid var(--line); color: var(--dim);
+  }
+  .slot .mini:hover:not(:disabled) { color: var(--text); border-color: #3d4a5e; }
+  .slot .mini:disabled { opacity: .35; cursor: default; }
+  .pnote { font-size: 11px; color: #3fb950; }
+  .warn { font-size: 10.5px; color: #e0a33a; line-height: 1.4; }
+
+  .hero-top { display: flex; align-items: flex-start; gap: 12px; }
+  .hero-sw { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--muted); }
+
+  .llist, .clist { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 7px; padding-right: 2px; min-height: 0; }
+  .llist::-webkit-scrollbar, .clist::-webkit-scrollbar { width: 8px; }
+  .llist::-webkit-scrollbar-thumb, .clist::-webkit-scrollbar-thumb { background: #262d38; border-radius: 4px; }
+  .lrow {
+    display: flex; align-items: center; gap: 9px; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 9px; padding: 9px 11px;
+  }
+  .lname { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+  .lname b { font-size: 12.5px; font-weight: 600; }
+  .lname em { font-style: normal; font-size: 10.5px; color: #565e6c; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mini {
+    font: inherit; font-size: 10.5px; padding: 4px 9px; border-radius: 5px; cursor: pointer;
+    background: #0f1319; border: 1px solid var(--line); color: var(--dim); white-space: nowrap;
+  }
+  .mini:hover { color: var(--text); border-color: #3d4a5e; }
+  .mini.cap { border-color: var(--accent); color: color-mix(in srgb, var(--accent) 65%, white); background: color-mix(in srgb, var(--accent) 18%, #0f1319); }
+  .mini.bad { border-color: #e5484d; color: #ff9a9d; }
+  .appwrap { display: flex; flex-direction: column; gap: 9px; padding: 14px 16px 16px; min-height: 0; flex: 1; }
+  .applist { flex: 1; min-height: 140px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+  .applist::-webkit-scrollbar { width: 8px; }
+  .applist::-webkit-scrollbar-thumb { background: #262d38; border-radius: 4px; }
+  .arow {
+    text-align: left; font: inherit; font-size: 12.5px; padding: 7px 10px; border-radius: 7px;
+    border: 1px solid transparent; background: transparent; color: #c3c9d6; cursor: pointer;
+  }
+  .arow:hover { background: #171b22; border-color: var(--line); color: var(--text); }
+  .appfoot { display: flex; align-items: center; gap: 10px; }
+  .appfoot .meta { margin: 0; }
+  .hud-items { display: flex; flex-wrap: wrap; gap: 9px 20px; }
+  .hchk { display: flex; align-items: center; gap: 7px; font-size: 12px; color: #c3c9d6; cursor: pointer; }
+  .hchk input { accent-color: var(--accent); }
+  .dl-head { display: flex; align-items: center; gap: 10px; }
+  .dl-meta { min-width: 0; flex: 1; }
+  .dl-meta b { font-size: 13px; font-weight: 600; }
+  .dl-list { max-height: 186px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+  .dl-list::-webkit-scrollbar { width: 8px; }
+  .dl-list::-webkit-scrollbar-thumb { background: #262d38; border-radius: 4px; }
+  .dl-item {
+    display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 5px 8px;
+    border-radius: 7px; background: #0f1319; border: 1px solid var(--line);
+  }
+  .dl-item input { accent-color: var(--accent); }
+  .dl-item .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dl-item .st { font-size: 10.5px; color: var(--dim); white-space: nowrap; }
+  .dl-item.done .st { color: #3fb950; }
+  .dl-item.err .st { color: #ff9a9d; }
+  .dlbar { height: 4px; background: #0f1319; border-radius: 3px; overflow: hidden; }
+  .dlbar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+  .acc-row { display: flex; gap: 9px; }
+  .acc {
+    width: 26px; height: 26px; border-radius: 50%; cursor: pointer; padding: 0;
+    border: 2px solid transparent; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .16);
+  }
+  .acc.on { border-color: var(--text); }
+  .crow {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 9px; padding: 9px 11px;
+    font-size: 12px; color: #c3c9d6; cursor: pointer; display: flex; gap: 10px; align-items: flex-start;
+  }
+  .crow:hover { border-color: #3d4a5e; }
+  .crow .t { flex: 1; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-word; }
+  .crow .w { font-size: 10px; color: #565e6c; white-space: nowrap; }
+  .num-txt { flex: 0 0 66px; text-align: center; }
+
+  .txt {
+    flex: 1; font: inherit; font-size: 12px; padding: 6px 9px; border-radius: 6px;
+    background: #0f1319; color: var(--text); border: 1px solid var(--line); outline: none;
+  }
+  .txt:focus { border-color: var(--accent); }
+  .lbl2 { font-size: 11.5px; color: var(--muted); min-width: 100px; }
+  .pingbox { font-size: 12px; color: var(--dim); line-height: 1.5; }
+  .big { font-size: 26px; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.2; }
+  .big small { font-size: 12px; color: var(--dim); font-weight: 500; margin-left: 4px; }
+  .meta { font-size: 11.5px; color: var(--dim); margin-top: 2px; }
+  .verdict {
+    display: inline-block; margin-top: 7px; font-size: 11px; font-weight: 600;
+    padding: 3px 10px; border-radius: 999px;
+  }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .mon { align-items: center; text-align: center; }
+  .mon-head {
+    width: 100%; display: flex; align-items: baseline; gap: 8px;
+    font-size: 10.5px; letter-spacing: .6px; text-transform: uppercase; color: var(--dim); font-weight: 600;
+  }
+  .mon-sub {
+    margin-left: auto; text-transform: none; letter-spacing: 0; font-size: 10.5px;
+    color: #565e6c; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 62%;
+  }
+  .ring-wrap { position: relative; width: 118px; height: 118px; margin: 2px auto; }
+  .ring { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .ring circle { fill: none; stroke-width: 10; stroke-linecap: round; }
+  .ring .bg { stroke: #1b212a; }
+  .ring .fg { stroke: #3fb950; stroke-dasharray: 326.7; stroke-dashoffset: 326.7; transition: stroke-dashoffset .6s ease, stroke .4s; }
+  .ring-val {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 24px; font-weight: 650; font-variant-numeric: tabular-nums;
+  }
+  .ring-val small { font-size: 11px; color: var(--dim); margin-left: 2px; font-weight: 500; }
+  .mon-foot { width: 100%; font-size: 11px; color: var(--dim); min-height: 15px; }
+  .legend { margin-left: auto; display: flex; align-items: center; gap: 5px; text-transform: none; letter-spacing: 0; font-weight: 500; }
+  .legend .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-left: 6px; }
+  .legend .dot.cpu { background: #6c5ce7; }
+  .legend .dot.gpu { background: #3fb950; }
+  .spark { width: 100%; height: 110px; display: block; }
+  .live-spark { width: 100%; height: 68px; display: block; }
+  .cores { display: grid; grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); gap: 7px 12px; }
+  .core { display: flex; align-items: center; gap: 6px; font-size: 10.5px; color: var(--dim); }
+  .core .bar { flex: 1; height: 4px; border-radius: 3px; background: #1b212a; overflow: hidden; }
+  .core .bar i { display: block; height: 100%; border-radius: 3px; background: #3fb950; transition: width .5s ease, background .4s; }
+
+  .main { flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 18px 22px 14px; gap: 12px; }
+  .top { display: flex; align-items: center; gap: 10px; }
+  h1 { font-size: 17px; margin: 0; font-weight: 650; }
+  .actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .ghost {
+    font: inherit; font-size: 12px; padding: 7px 14px; border-radius: 8px; cursor: pointer;
+    background: transparent; color: var(--muted); border: 1px solid #2b3341;
+  }
+  .ghost:hover { border-color: #3d4a5e; color: var(--text); }
+  .run {
+    font: inherit; font-size: 12.5px; font-weight: 600; letter-spacing: .3px;
+    padding: 7px 22px; border-radius: 8px; border: 0; cursor: pointer;
+    background: var(--accent); color: #fff;
+  }
+  .run:hover { filter: brightness(1.1); }
+  .run.stop { background: #e5484d; }
+
+  .bar { display: flex; gap: 14px; font-size: 11.5px; color: var(--dim); align-items: center; }
+  .chip {
+    font-family: ui-monospace, Consolas, monospace; font-size: 11.5px; cursor: pointer;
+    background: var(--panel2); border: 1px solid #2d3746; color: #cfd6e4;
+    padding: 4px 9px; border-radius: 6px;
+  }
+  .chip:hover { border-color: #3d4a5e; }
+  .chip.cap { border-color: var(--accent); color: color-mix(in srgb, var(--accent) 65%, white); background: color-mix(in srgb, var(--accent) 18%, #0f1319); }
+
+  #list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 2px; }
+  #list::-webkit-scrollbar { width: 8px; }
+  #list::-webkit-scrollbar-thumb { background: #262d38; border-radius: 4px; }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 11px 13px; display: flex; flex-direction: column; gap: 9px;
+  }
+  .card.live { border-color: #3b3568; box-shadow: 0 0 0 1px #2c2752 inset; }
+  .card.off { opacity: .5; }
+  .ch { display: flex; align-items: center; gap: 8px; }
+  .tag { font-size: 10.5px; color: var(--dim); }
+  .sw { margin-left: auto; width: 34px; height: 19px; position: relative; flex: 0 0 auto; cursor: pointer; }
+  .sw input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+  .sw i { position: absolute; inset: 0; border-radius: 999px; background: #2b3340; pointer-events: none; }
+  .sw i::after {
+    content: ''; position: absolute; top: 2px; left: 2px; width: 15px; height: 15px;
+    border-radius: 50%; background: #e6e9ef;
+  }
+  .sw input:checked + i { background: var(--accent); }
+  .sw input:checked + i::after { left: 17px; }
+
+  .row { display: flex; align-items: center; gap: 9px; font-size: 11.5px; color: var(--muted); }
+  .seg { display: flex; background: #0f1319; border: 1px solid var(--line); border-radius: 7px; padding: 2px; gap: 2px; }
+  .seg button {
+    font: inherit; font-size: 11.5px; padding: 3px 10px; border: 0; border-radius: 5px;
+    background: transparent; color: var(--muted); cursor: pointer;
+  }
+  .seg button.on { background: #242c3a; color: var(--text); }
+  .sel {
+    font: inherit; font-size: 11.5px; padding: 4px 6px; border-radius: 6px;
+    background: var(--panel2); color: #c3c9d6; border: 1px solid #262e3a; outline: none; cursor: pointer;
+  }
+  .lbl { min-width: 26px; }
+  input[type=range] { flex: 1; accent-color: var(--c, var(--accent)); height: 4px; cursor: pointer; min-width: 80px; }
+  .num { font-variant-numeric: tabular-nums; color: var(--c, var(--text)); font-size: 12px; min-width: 62px; text-align: right; }
+  .num small { color: var(--dim); font-size: 10.5px; margin-left: 3px; }
+  .presets { display: flex; gap: 3px; }
+  .presets button {
+    font: inherit; font-size: 10.5px; font-variant-numeric: tabular-nums; padding: 3px 7px;
+    border-radius: 5px; background: #0f1319; border: 1px solid var(--line);
+    color: var(--dim); cursor: pointer;
+  }
+  .presets button:hover { color: var(--text); border-color: #3d4a5e; }
+  .presets button.on { color: var(--text); border-color: var(--c, #3d4a5e); background: #1a1f27; }
+  .del {
+    margin-left: 2px; width: 22px; height: 22px; border-radius: 6px; border: 1px solid transparent;
+    background: transparent; color: var(--dim); font-size: 15px; line-height: 1; cursor: pointer;
+  }
+  .del:hover { background: #2a1b1f; color: #ff8b8b; border-color: #40262c; }
+
+  #add {
+    font: inherit; font-size: 12px; padding: 9px; border-radius: 8px; cursor: pointer;
+    background: transparent; color: var(--muted); border: 1px dashed #2b3341;
+  }
+  #add:hover { border-color: #3d4a5e; color: var(--text); }
+  .foot { margin: 0; font-size: 10.5px; color: var(--dim); line-height: 1.5; }
+  .foot b { color: var(--muted); font-weight: 600; }
+  .empty { color: var(--dim); text-align: center; padding: 24px 0; font-size: 12px; }
+
+  .modal {
+    position: fixed; inset: 0; background: rgba(6, 8, 11, .72);
+    display: none; align-items: center; justify-content: center; padding: 24px;
+  }
+  .modal.show { display: flex; }
+  .sheet {
+    background: var(--panel); border: 1px solid #2b3341; border-radius: 12px;
+    width: 100%; max-width: 560px; max-height: 100%; display: flex; flex-direction: column;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, .55);
+  }
+  .sheet header {
+    display: flex; align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--line);
+  }
+  .sheet h2 { margin: 0; font-size: 14px; font-weight: 650; }
+  .sheet .x {
+    margin-left: auto; width: 26px; height: 26px; border-radius: 7px; cursor: pointer;
+    background: transparent; border: 0; color: var(--dim); font-size: 17px; line-height: 1;
+  }
+  .sheet .x:hover { background: #1f242c; color: var(--text); }
+  .guide { overflow-y: auto; padding: 14px 16px 18px; font-size: 12px; line-height: 1.6; color: #b9c0cd; }
+  .guide::-webkit-scrollbar { width: 8px; }
+  .guide::-webkit-scrollbar-thumb { background: #262d38; border-radius: 4px; }
+  .guide h3 {
+    margin: 16px 0 6px; font-size: 11px; letter-spacing: .6px; text-transform: uppercase;
+    color: color-mix(in srgb, var(--accent) 70%, white); font-weight: 650;
+  }
+  .guide h3:first-child { margin-top: 0; }
+  .guide p { margin: 0 0 6px; }
+  .guide ul { margin: 0; padding-left: 18px; }
+  .guide li { margin-bottom: 4px; }
+  .guide b { color: var(--text); font-weight: 600; }
+  .guide code {
+    font-family: ui-monospace, Consolas, monospace; font-size: 11px; background: #1d2430;
+    border: 1px solid #2d3746; color: #cfd6e4; padding: 1px 5px; border-radius: 4px;
+  }
+  .guide table { width: 100%; border-collapse: collapse; margin: 4px 0 6px; font-size: 11.5px; }
+  .guide th {
+    text-align: left; font-weight: 600; color: var(--dim); font-size: 10.5px;
+    text-transform: uppercase; letter-spacing: .4px; padding: 4px 8px 4px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .guide td { padding: 5px 8px 5px 0; border-bottom: 1px solid #1c222b; vertical-align: top; }
+  .guide td:first-child { font-variant-numeric: tabular-nums; color: var(--text); width: 46px; }
+</style>
+</head>
+<body>
+<div class="win">
+  <aside class="side">
+    <div class="brand">Executor <span>Kingjo</span></div>
+    <div class="nav on" data-view="main">Main</div>
+    <div class="navlabel">Features</div>
+    <div class="nav" data-view="macro">Macro</div>
+    <div class="nav" data-view="network">Network</div>
+    <div class="nav" data-view="system">System</div>
+    <div class="navlabel">Tools</div>
+    <div class="nav" data-view="launcher">Launcher</div>
+    <div class="nav" data-view="clipboard">Clipboard</div>
+    <div class="nav" data-view="cleaner">Cleaner</div>
+    <div class="nav" data-view="download">Download</div>
+    <div class="nav" data-view="overlay">Overlay</div>
+    <div class="sp"></div>
+    <div class="nav" data-view="settings">Pengaturan</div>
+    <div class="ver">v0.4</div>
+  </aside>
+
+  <main class="main">
+    <section class="view on" id="v-main">
+      <h1>Main</h1>
+      <div class="hero">
+        <div class="hero-top">
+          <div>
+            <div class="hero-hi" id="hero-hi">Selamat datang</div>
+            <div class="hero-sub" id="hero-sub"></div>
+          </div>
+          <label class="hero-sw">Overlay <span class="sw"><input type="checkbox" id="ovl"><i></i></span></label>
+        </div>
+        <div class="hero-info" id="hero-info"></div>
+      </div>
+      <div class="dash">
+        <div class="card">
+          <div class="dc-title">Macro</div>
+          <div class="dc-value" id="dash-macro">Nonaktif</div>
+          <div class="dc-meta" id="dash-macro-meta">—</div>
+          <button class="ghost" data-go="macro">Buka Macro</button>
+        </div>
+        <div class="card">
+          <div class="dc-title">Network</div>
+          <div class="dc-value" id="dash-ping">—</div>
+          <div class="dc-meta" id="dash-ping-meta">Belum dites</div>
+          <button class="ghost" data-go="network">Buka Network</button>
+        </div>
+        <div class="card">
+          <div class="dc-title">System</div>
+          <div class="dc-value" id="dash-sys">—</div>
+          <div class="dc-meta" id="dash-sys-meta">CPU · RAM · GPU</div>
+          <button class="ghost" data-go="system">Buka System</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="view" id="v-macro">
+    <div class="top">
+      <h1>Macro</h1>
+      <div class="actions">
+        <button id="help" class="ghost">Panduan</button>
+        <button id="master" class="run">Run</button>
+      </div>
+    </div>
+
+    <div class="bar">
+      <span>Master <b class="chip" data-act="cap-app" data-v="master"></b></span>
+      <span>Panic <b class="chip" data-act="cap-app" data-v="panic"></b></span>
+    </div>
+
+    <div class="pbar">
+      <div id="preset-slots" class="pbar"></div>
+      <span id="preset-note" class="pnote"></span>
+    </div>
+
+    <div id="list"></div>
+    <button id="add">+ Tambah macro</button>
+    <p class="foot">
+      Klik label tombol untuk merekam pemicu. <b>CPS 0</b> = kirim sekali per tekan.
+      <b>Run</b> menyalakan macro, <b>Stop</b> mematikannya.
+    </p>
+    </section>
+
+    <section class="view" id="v-network">
+      <h1>Network</h1>
+
+      <div class="card">
+        <div class="row">
+          <span class="lbl2">Host / domain</span>
+          <input id="host" class="txt" value="8.8.8.8" spellcheck="false" placeholder="mis. roblox.com">
+          <button id="ping" class="run small">Kirim</button>
+        </div>
+        <div class="pingbox" id="ping-out">Ketik host lalu klik Kirim untuk mengukur ping.</div>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <span class="lbl2">Live ping</span>
+          <span class="meta" id="live-host">1 paket tiap detik</span>
+          <button id="live" class="ghost" style="margin-left:auto">Mulai</button>
+        </div>
+        <div class="pingbox" id="live-out">Belum jalan. Live ping memakai host di atas.</div>
+        <svg id="live-spark" viewBox="0 0 600 90" preserveAspectRatio="none" class="live-spark"></svg>
+        <div class="row" style="flex-wrap:wrap">
+          <label class="sw" style="margin-left:0"><input type="checkbox" id="alert-on"><i></i></label>
+          <span>Alert kalau ping di atas</span>
+          <input id="alert-ms" class="txt" value="120" spellcheck="false" style="flex:0 0 66px;text-align:center">
+          <span>ms</span>
+          <select id="alert-via" class="sel">
+            <option value="both">Windows + HUD</option>
+            <option value="hud">HUD saja</option>
+            <option value="win">Notifikasi Windows</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <span class="lbl2">Wi-Fi</span>
+          <span class="meta" id="wifi-ssid">—</span>
+          <button id="wifi-refresh" class="ghost" style="margin-left:auto">Segarkan</button>
+        </div>
+        <div class="pingbox" id="wifi-info">Memuat…</div>
+        <div class="row" style="flex-wrap:wrap">
+          <span class="lbl2">DNS</span>
+          <span class="meta" id="dns-now" style="margin:0">—</span>
+          <button class="mini" data-dns="cloudflare">Cloudflare</button>
+          <button class="mini" data-dns="google">Google</button>
+          <button class="mini" data-dns="auto">Otomatis</button>
+          <span class="meta" id="dns-out" style="margin:0"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <span class="lbl2">Kecepatan unduh</span>
+          <button id="speed" class="ghost">Tes</button>
+        </div>
+        <div class="pingbox" id="speed-out">Belum dites. Butuh unduh ~10 MB.</div>
+      </div>
+    </section>
+
+    <section class="view" id="v-system">
+      <h1>System</h1>
+
+      <div class="grid">
+        <div class="card mon">
+          <div class="mon-head">CPU <span class="mon-sub" id="cpu-sub">—</span></div>
+          <div class="ring-wrap">
+            <svg viewBox="0 0 120 120" class="ring">
+              <circle class="bg" cx="60" cy="60" r="52"></circle>
+              <circle class="fg" id="cpu-ring" cx="60" cy="60" r="52"></circle>
+            </svg>
+            <div class="ring-val" id="cpu-val">0<small>%</small></div>
+          </div>
+          <div class="mon-foot" id="cpu-foot">—</div>
+        </div>
+
+        <div class="card mon">
+          <div class="mon-head">GPU <span class="mon-sub" id="gpu-sub">—</span></div>
+          <div class="ring-wrap">
+            <svg viewBox="0 0 120 120" class="ring">
+              <circle class="bg" cx="60" cy="60" r="52"></circle>
+              <circle class="fg" id="gpu-ring" cx="60" cy="60" r="52"></circle>
+            </svg>
+            <div class="ring-val" id="gpu-val">0<small>%</small></div>
+          </div>
+          <div class="mon-foot" id="gpu-foot">—</div>
+        </div>
+
+        <div class="card mon">
+          <div class="mon-head">RAM <span class="mon-sub" id="ram-sub">—</span></div>
+          <div class="ring-wrap">
+            <svg viewBox="0 0 120 120" class="ring">
+              <circle class="bg" cx="60" cy="60" r="52"></circle>
+              <circle class="fg" id="ram-ring" cx="60" cy="60" r="52"></circle>
+            </svg>
+            <div class="ring-val" id="ram-val">0<small>%</small></div>
+          </div>
+          <div class="mon-foot" id="ram-foot">—</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="mon-head">Riwayat 60 detik <span class="legend"><i class="dot cpu"></i>CPU<i class="dot gpu"></i>GPU</span></div>
+        <svg id="spark" viewBox="0 0 600 110" preserveAspectRatio="none" class="spark"></svg>
+      </div>
+
+      <div class="card">
+        <div class="mon-head">Per core</div>
+        <div class="cores" id="cores"></div>
+      </div>
+    </section>
+
+    <section class="view" id="v-launcher">
+      <h1>Launcher</h1>
+      <div class="row">
+        <input id="lsearch" class="txt" placeholder="Cari aplikasi…" spellcheck="false" style="flex:1">
+        <button id="ladd" class="ghost">+ Tambah</button>
+      </div>
+      <div class="llist" id="llist"></div>
+      <p class="foot">Klik <b>Keybind</b> lalu tekan kombinasi tombol (wajib pakai Ctrl/Alt/Shift, atau tombol F1–F24). Klik <b>+ App</b> untuk menambah app lain ke keybind yang sama. Kalau keybind ditandai merah, hotkey itu sudah dipakai app lain.</p>
+    </section>
+
+    <section class="view" id="v-clipboard">
+      <div class="top">
+        <h1>Clipboard</h1>
+        <div class="actions"><button id="cclr" class="ghost">Bersihkan</button></div>
+      </div>
+      <div class="clist" id="clist"></div>
+      <p class="foot">50 teks terakhir yang kamu copy. Klik untuk menyalin ulang.</p>
+    </section>
+
+    <section class="view" id="v-cleaner">
+      <h1>Cleaner</h1>
+      <div class="card">
+        <div class="row">
+          <span class="lbl2">Sampah</span>
+          <span class="meta" id="clean-size" style="margin:0">Belum dipindai</span>
+          <button id="cscan" class="ghost" style="margin-left:auto">Pindai</button>
+        </div>
+        <div class="pingbox" id="clean-info">Temp Windows + temp user + Recycle Bin.</div>
+        <div class="row">
+          <button id="crun" class="run small" disabled>Hapus</button>
+          <span class="meta" id="clean-out" style="margin:0"></span>
+        </div>
+      </div>
+    </section>
+
+    <section class="view" id="v-download">
+      <h1>Download</h1>
+
+      <div class="card" id="dl-req" hidden>
+        <div class="mon-head">Butuh tambahan</div>
+        <div class="meta" id="dl-req-text" style="margin:0;line-height:1.55"></div>
+        <div class="row" style="margin-top:8px">
+          <button class="ghost" id="dl-recheck">Cek ulang</button>
+          <button class="ghost" id="dl-open-yt">Halaman yt-dlp</button>
+          <button class="ghost" id="dl-open-ff">Halaman ffmpeg</button>
+        </div>
+      </div>
+
+      <div class="row">
+        <input id="dl-url" class="txt" placeholder="Tempel link YouTube, TikTok, X, Instagram, atau file langsung…" spellcheck="false" style="flex:1">
+        <button id="dl-go" class="ghost">Analisa</button>
+      </div>
+
+      <div class="card" id="dl-info" hidden>
+        <div class="dl-head">
+          <div class="dl-meta">
+            <b id="dl-title">—</b>
+            <div class="meta" id="dl-sub" style="margin:0"></div>
+          </div>
+          <label class="hchk"><input type="checkbox" id="dl-all" checked> Pilih semua</label>
+        </div>
+        <div class="dl-list" id="dl-list"></div>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <span class="lbl2">Format</span>
+          <div class="seg" id="dl-mode">
+            <button data-mode="mp4" class="on">MP4</button>
+            <button data-mode="mp3">MP3</button>
+          </div>
+          <div class="seg" id="dl-q">
+            <button data-q="best" class="on">Terbaik</button>
+            <button data-q="1080">1080p</button>
+            <button data-q="720">720p</button>
+            <button data-q="480">480p</button>
+          </div>
+        </div>
+        <div class="row">
+          <span class="lbl2">Folder</span>
+          <span class="meta" id="dl-dir" style="margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">—</span>
+          <button class="mini" id="dl-folder" style="margin-left:auto">Buka folder</button>
+        </div>
+        <div class="row">
+          <button id="dl-start" class="run small" disabled>Download</button>
+          <button id="dl-stop" class="ghost" disabled>Stop</button>
+          <span class="meta" id="dl-state" style="margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+        </div>
+        <div class="dlbar"><i id="dl-bar"></i></div>
+      </div>
+
+      <p class="foot">Pakai yt-dlp + ffmpeg. Dukungan situs mengikuti yt-dlp (YouTube, TikTok, X, Instagram, Facebook, dan ribuan lainnya). Terabox belum didukung yt-dlp. MP3 dan penggabungan video butuh ffmpeg.</p>
+    </section>
+
+    <section class="view" id="v-overlay">
+      <h1>Overlay HUD</h1>
+      <div class="card">
+        <div class="row">
+          <span class="lbl2">Tampilkan</span>
+          <span class="meta" style="margin:0">Kotak kecil di atas semua jendela</span>
+          <label class="sw"><input type="checkbox" id="hud-on"><i></i></label>
+        </div>
+        <div class="row">
+          <span class="lbl2">Posisi</span>
+          <div class="seg" id="hud-pos">
+            <button data-hpos="tl">Kiri atas</button>
+            <button data-hpos="tr">Kanan atas</button>
+            <button data-hpos="bl">Kiri bawah</button>
+            <button data-hpos="br">Kanan bawah</button>
+          </div>
+        </div>
+        <div class="row">
+          <span class="lbl2">Transparansi</span>
+          <input type="range" id="hud-op" min="30" max="100" step="1">
+          <span class="num" id="hud-op-v" style="min-width:44px"></span>
+        </div>
+        <div class="row">
+          <span class="lbl2">Ukuran</span>
+          <input type="range" id="hud-scale" min="80" max="150" step="5">
+          <span class="num" id="hud-scale-v" style="min-width:44px"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="mon-head">Isi HUD</div>
+        <div class="hud-items">
+          <label class="hchk"><input type="checkbox" data-hitem="macro"> Status macro</label>
+          <label class="hchk"><input type="checkbox" data-hitem="run"> Jumlah macro jalan</label>
+          <label class="hchk"><input type="checkbox" data-hitem="ping"> Ping</label>
+          <label class="hchk"><input type="checkbox" data-hitem="cpu"> CPU</label>
+        </div>
+      </div>
+
+      <p class="foot">HUD tidak bisa diklik (klik-tembus) supaya tidak mengganggu game. Semua perubahan langsung terlihat di layar.</p>
+    </section>
+
+    <section class="view" id="v-settings">
+      <h1>Pengaturan</h1>
+      <div class="card">
+        <div class="mon-head">Saat Windows dibuka</div>
+        <div class="row">
+          <span class="lbl2">Jalankan otomatis</span>
+          <span class="meta" style="margin:0">Buka Executor Kingjo saat login Windows</span>
+          <label class="sw"><input type="checkbox" id="set-auto"><i></i></label>
+        </div>
+        <div class="row">
+          <span class="lbl2">Mulai tersembunyi</span>
+          <span class="meta" style="margin:0">Langsung ke tray, tidak ada jendela muncul</span>
+          <label class="sw"><input type="checkbox" id="set-hidden"><i></i></label>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="mon-head">Tampilan</div>
+        <div class="row">
+          <span class="lbl2">Warna aksen</span>
+          <div class="acc-row" id="acc-row">
+            <button class="acc" data-accent="#6c5ce7" style="background:#6c5ce7" title="Ungu"></button>
+            <button class="acc" data-accent="#3b82f6" style="background:#3b82f6" title="Biru"></button>
+            <button class="acc" data-accent="#14b8a6" style="background:#14b8a6" title="Hijau toska"></button>
+            <button class="acc" data-accent="#f59e0b" style="background:#f59e0b" title="Oranye"></button>
+            <button class="acc" data-accent="#ec4899" style="background:#ec4899" title="Pink"></button>
+          </div>
+        </div>
+        <p class="foot" style="margin:2px 0 0">Warna aksen dipakai di tombol, switch, dan sorotan menu.</p>
+      </div>
+
+      <p class="foot">Pengaturan start otomatis ditulis ke Windows (registry Run). Kalau app dipindah folder, pengaturan ini menyesuaikan sendiri saat app dibuka lagi.</p>
+    </section>
+  </main>
+</div>
+
+<div id="modal" class="modal">
+  <div class="sheet">
+    <header>
+      <h2>Panduan Macro</h2>
+      <button class="x" id="close-help" title="Tutup">×</button>
+    </header>
+    <div class="guide">
+      <h3>Cara pakai</h3>
+      <ul>
+        <li>Klik label tombol di kartu (mis. <code>XButton2</code>), lalu tekan tombol yang mau jadi pemicu. Escape untuk batal.</li>
+        <li>Pilih <b>Hold</b> atau <b>Toggle</b>.</li>
+        <li>Pilih aksi: <b>Mouse</b> (klik kiri/kanan/tengah) atau <b>Keyboard</b> (klik chip hurufnya lalu tekan tombol).</li>
+        <li>Atur <b>CPS</b>, lalu klik <b>Run</b>. Tombolnya berubah jadi <b>Stop</b>.</li>
+      </ul>
+
+      <h3>Hold vs Toggle</h3>
+      <ul>
+        <li><b>Hold</b> — macro jalan hanya selama tombol ditahan. Lepas tombol, langsung berhenti. Cocok untuk spam klik saat menembak.</li>
+        <li><b>Toggle</b> — tekan sekali untuk menyalakan, tekan lagi untuk mematikan. Cocok untuk tombol yang cuma dipencet sekali, mis. skill <code>q</code>.</li>
+      </ul>
+
+      <h3>Mouse vs Keyboard</h3>
+      <ul>
+        <li><b>Mouse</b> — mengirim klik ke window yang sedang fokus. Pilih kiri, kanan, atau tengah.</li>
+        <li><b>Keyboard</b> — mengirim tombol keyboard, mis. <code>q</code>. Kalau CPS di atas 0, tombol itu diulang sesuai CPS.</li>
+        <li>Macro selalu masuk ke window yang <b>sedang fokus</b>, jadi klik dulu ke game sebelum menekan pemicu.</li>
+      </ul>
+
+      <h3>Panduan CPS</h3>
+      <p>Angka CPS adalah berapa aksi per detik. Semakin tinggi, semakin besar beban ke CPU dan semakin sering game menolaknya.</p>
+      <table>
+        <tr><th>CPS</th><th>Arti</th><th>Keterangan</th></tr>
+        <tr><td>0</td><td>Sekali</td><td>satu aksi per tekan, tidak diulang</td></tr>
+        <tr><td>38</td><td>Stabil</td><td>setara macro mouse biasa (delay ~25 ms), paling aman</td></tr>
+        <tr><td>60</td><td>Tinggi</td><td>delay ~15 ms, masih wajar</td></tr>
+        <tr><td>90</td><td>Teori</td><td>delay ~10 ms, sering ke-cap browser/game</td></tr>
+        <tr><td>160</td><td>Brutal</td><td>delay ~5 ms, batas atas, kebanyakan game tidak sanggup</td></tr>
+      </table>
+      <p>Kalau klik mulai terasa tidak konsisten, turunkan CPS — biasanya game/browser membatasi sendiri di sekitar 60–90.</p>
+
+      <h3>Master &amp; Panic</h3>
+      <ul>
+        <li><b>Master</b> (<code>RControl</code>) — nyala/matikan semua macro tanpa membuka app. Saat mati, tombol samping mouse kembali normal.</li>
+        <li><b>Panic</b> (<code>AppsKey</code>) — melepas semua klik yang nyangkut. Pakai kalau mouse terasa "tertahan".</li>
+        <li>Kedua tombol itu bisa diganti dengan klik chip-nya di atas daftar macro.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div id="appmodal" class="modal">
+  <div class="sheet">
+    <header>
+      <h2>Pilih aplikasi</h2>
+      <button class="x" id="close-apps" title="Tutup">×</button>
+    </header>
+    <div class="appwrap">
+      <input id="asearch" class="txt" placeholder="Cari aplikasi terinstal…" spellcheck="false">
+      <div class="applist" id="applist"></div>
+      <div class="appfoot">
+        <button id="apick" class="ghost">Pilih file manual…</button>
+        <span class="meta" id="acount"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const MOUSE = { 0: 'LButton', 1: 'MButton', 2: 'RButton', 3: 'XButton1', 4: 'XButton2' };
+const KEYMAP = {
+  ' ': 'Space', 'Escape': 'Esc', 'ArrowUp': 'Up', 'ArrowDown': 'Down', 'ArrowLeft': 'Left',
+  'ArrowRight': 'Right', 'Control': 'Ctrl', 'Enter': 'Enter', 'Tab': 'Tab', 'Backspace': 'Backspace',
+  'Delete': 'Delete', 'Home': 'Home', 'End': 'End', 'PageUp': 'PgUp', 'PageDown': 'PgDn',
+  'Insert': 'Ins', 'CapsLock': 'CapsLock', 'Shift': 'Shift', 'Alt': 'Alt', 'Meta': 'LWin',
+  'ContextMenu': 'AppsKey', 'PrintScreen': 'PrintScreen', 'Pause': 'Pause', 'NumLock': 'NumLock',
+  'ScrollLock': 'ScrollLock', 'AltGraph': 'Alt'
+};
+
+let cfg = null;
+let status = { enabled: false, running: [] };
+let capture = null;
+let saveTimer = null;
+let justCaptured = false;
+let masterLock = 0;
+let presets = {};
+let lastPing = null;
+let lastCpu = 0;
+let liveOn = false;
+
+function keyName(e) {
+  if (KEYMAP[e.key]) return KEYMAP[e.key];
+  return e.key.length === 1 ? e.key.toLowerCase() : e.key;
+}
+
+// warna slider: hijau = aman, biru = batas wajar, merah = brutal
+function zone(cps) {
+  if (cps <= 45) return '#3fb950';
+  if (cps <= 80) return '#4c8dff';
+  return '#e5484d';
+}
+
+// pemicu tombol mouse yang sama dengan aksinya: klik fisik ikut ditelan macro
+const SAME_BTN = { LButton: 'left', RButton: 'right', MButton: 'middle' };
+
+function capText(kind, i, current) {
+  if (capture && capture.kind === kind && capture.i === i) return 'Tekan tombol…';
+  return current;
+}
+
+function save(now) {
+  clearTimeout(saveTimer);
+  const run = () => window.api.save(cfg);
+  if (now) run(); else saveTimer = setTimeout(run, 200);
+}
+
+function render() {
+  document.querySelector('[data-v="master"]').textContent = cfg.app.master;
+  document.querySelector('[data-v="panic"]').textContent = cfg.app.panic;
+  document.querySelector('[data-v="master"]').classList.toggle('cap', !!capture && capture.kind === 'app' && capture.v === 'master');
+  document.querySelector('[data-v="panic"]').classList.toggle('cap', !!capture && capture.kind === 'app' && capture.v === 'panic');
+
+  const list = document.getElementById('list');
+  if (!cfg.macros.length) {
+    list.innerHTML = '<div class="empty">Belum ada macro.</div>';
+    return;
+  }
+  list.innerHTML = cfg.macros.map((m, i) => `
+    <div class="card ${m.enabled ? '' : 'off'}" data-card="${i}">
+      <div class="ch">
+        <button class="chip ${capture && capture.kind === 'trigger' && capture.i === i ? 'cap' : ''}"
+                data-act="cap-trigger" data-i="${i}">${capText('trigger', i, m.trigger)}</button>
+        <span class="tag">pemicu</span>
+        <label class="sw"><input type="checkbox" data-act="enabled" data-i="${i}" ${m.enabled ? 'checked' : ''}><i></i></label>
+      </div>
+      <div class="row">
+        <div class="seg">
+          <button data-act="mode" data-i="${i}" data-v="hold" class="${m.mode === 'hold' ? 'on' : ''}">Hold</button>
+          <button data-act="mode" data-i="${i}" data-v="toggle" class="${m.mode === 'toggle' ? 'on' : ''}">Toggle</button>
+        </div>
+        <select class="sel" data-act="action" data-i="${i}">
+          <option value="mouse" ${m.action === 'mouse' ? 'selected' : ''}>Mouse</option>
+          <option value="key" ${m.action === 'key' ? 'selected' : ''}>Keyboard</option>
+        </select>
+        ${m.action === 'mouse' ? `
+          <select class="sel" data-act="value" data-i="${i}">
+            <option value="left" ${m.value === 'left' ? 'selected' : ''}>Klik kiri</option>
+            <option value="right" ${m.value === 'right' ? 'selected' : ''}>Klik kanan</option>
+            <option value="middle" ${m.value === 'middle' ? 'selected' : ''}>Klik tengah</option>
+          </select>` : `
+          <button class="chip ${capture && capture.kind === 'value' && capture.i === i ? 'cap' : ''}"
+                  data-act="cap-value" data-i="${i}">${capText('value', i, m.value)}</button>`}
+      </div>
+      <div class="row">
+        <span class="lbl">CPS</span>
+        <div class="presets">
+          ${[38, 60, 90, 160].map((v) => `<button data-act="preset" data-i="${i}" data-v="${v}"
+            class="${m.cps === v ? 'on' : ''}" style="--c:${zone(v)}">${v}</button>`).join('')}
+        </div>
+        <input type="range" min="0" max="160" step="1" value="${m.cps}" data-act="cps" data-i="${i}"
+               style="--c:${zone(m.cps)}">
+        <span class="num" style="color:${zone(m.cps)}">${m.cps}<small>${m.cps > 0 ? 'cps' : 'sekali'}</small></span>
+        <button class="del" data-act="del" data-i="${i}" title="Hapus">×</button>
+      </div>
+      ${m.action === 'mouse' && SAME_BTN[m.trigger] === m.value
+        ? '<div class="warn">Pemicu dan aksi sama: klik fisik ditelan macro (autoclicker). Kalau macet, tekan Panic.</div>'
+        : ''}
+    </div>`).join('');
+}
+
+function paintStatus() {
+  const btn = document.getElementById('master');
+  btn.textContent = status.enabled ? 'Stop' : 'Run';
+  btn.classList.toggle('stop', status.enabled);
+  const dm = document.getElementById('dash-macro');
+  dm.textContent = status.enabled ? 'Aktif' : 'Nonaktif';
+  dm.style.color = status.enabled ? '#3fb950' : '';
+  document.getElementById('dash-macro-meta').textContent = cfg.macros.length + ' macro siap';
+  document.querySelectorAll('[data-card]').forEach((el) => {
+    el.classList.toggle('live', !!status.running[Number(el.dataset.card)]);
+  });
+  paintHero();
+}
+
+// ---------- sapaan di Main ----------
+function paintHero() {
+  const now = new Date();
+  const h = now.getHours();
+  const hi = h < 4 ? 'Selamat malam' : h < 11 ? 'Selamat pagi' : h < 15 ? 'Selamat siang' : h < 19 ? 'Selamat sore' : 'Selamat malam';
+  document.getElementById('hero-hi').innerHTML = `${hi}, <span>Kingjo</span>`;
+  document.getElementById('hero-sub').textContent =
+    now.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) +
+    ' · ' + now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+  document.getElementById('hero-info').innerHTML =
+    `Macro <b style="color:${status.enabled ? '#3fb950' : ''}">${status.enabled ? 'aktif' : 'nonaktif'}</b> · ` +
+    `Ping <b>${lastPing != null ? lastPing + ' ms' : '—'}</b> · ` +
+    `CPU <b>${lastCpu}%</b>`;
+}
+
+// ---------- preset slot macro ----------
+function paintPresets() {
+  document.getElementById('preset-slots').innerHTML = [1, 2].map((s) => {
+    const info = presets[String(s)];
+    const when = info
+      ? `${info.n} macro · ${new Date(info.at).toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`
+      : 'kosong';
+    return `<span class="slot"><b>Slot ${s}</b><em>${when}</em>
+      <button class="mini" data-act="psave" data-i="${s}">Simpan</button>
+      <button class="mini" data-act="pload" data-i="${s}" ${info ? '' : 'disabled'}>Muat</button></span>`;
+  }).join('');
+}
+
+let noteTimer = null;
+function note(msg) {
+  const el = document.getElementById('preset-note');
+  el.textContent = msg;
+  clearTimeout(noteTimer);
+  noteTimer = setTimeout(() => { el.textContent = ''; }, 2500);
+}
+
+function startCapture(c) {
+  if (capture) return;
+  capture = c;
+  cfg.app.paused = true;
+  save(true);
+  render();
+}
+
+function endCapture() {
+  if (!capture) return;
+  capture = null;
+  justCaptured = true;
+  setTimeout(() => { justCaptured = false; }, 200);
+  cfg.app.paused = false;
+  save(true);
+  render();
+}
+
+document.addEventListener('mousedown', (e) => {
+  if (!capture) return;
+  e.preventDefault();
+  e.stopPropagation();
+  if (capture.kind === 'value') return;
+  const name = MOUSE[e.button];
+  if (!name) return;
+  applyCapture(name);
+}, true);
+
+document.addEventListener('keydown', (e) => {
+  if (!capture) return;
+  e.preventDefault();
+  e.stopPropagation();
+  if (e.key === 'Escape') { endCapture(); return; }
+  if (e.repeat) return;
+  applyCapture(keyName(e));
+}, true);
+
+function applyCapture(name) {
+  if (capture.kind === 'app') cfg.app[capture.v] = name;
+  else if (capture.kind === 'trigger') cfg.macros[capture.i].trigger = name;
+  else cfg.macros[capture.i].value = name;
+  endCapture();
+  save();
+}
+
+document.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-act]');
+  if (!el || justCaptured) return;
+  const act = el.dataset.act;
+  const i = Number(el.dataset.i);
+
+  if (act === 'cap-trigger') startCapture({ kind: 'trigger', i });
+  else if (act === 'cap-value') startCapture({ kind: 'value', i });
+  else if (act === 'cap-app') startCapture({ kind: 'app', v: el.dataset.v });
+  else if (act === 'mode') { cfg.macros[i].mode = el.dataset.v; save(); render(); }
+  else if (act === 'preset') { cfg.macros[i].cps = Number(el.dataset.v); save(); render(); }
+  else if (act === 'del') { cfg.macros.splice(i, 1); save(); render(); }
+  else if (act === 'psave') {
+    window.api.presetSave(String(i), cfg.macros).then((r) => {
+      presets[String(i)] = { n: cfg.macros.length, at: r.at };
+      paintPresets();
+      note(`Tersimpan ke slot ${i}`);
+    });
+  }
+  else if (act === 'pload') {
+    window.api.presetLoad(String(i)).then((macros) => {
+      if (!macros) return;
+      cfg.macros = macros;
+      save(true);
+      render();
+      note(`Slot ${i} dimuat`);
+    });
+  }
+});
+
+document.addEventListener('change', (e) => {
+  const el = e.target.closest('[data-act]');
+  if (!el) return;
+  const act = el.dataset.act;
+  const i = Number(el.dataset.i);
+  if (act === 'enabled') { cfg.macros[i].enabled = el.checked; save(); render(); }
+  else if (act === 'action') {
+    const m = cfg.macros[i];
+    m.action = el.value;
+    m.value = el.value === 'mouse' ? 'left' : 'q';
+    save(); render();
+  } else if (act === 'value') { cfg.macros[i].value = el.value; save(); }
+});
+
+document.addEventListener('input', (e) => {
+  const el = e.target.closest('[data-act="cps"]');
+  if (!el) return;
+  const m = cfg.macros[Number(el.dataset.i)];
+  m.cps = Number(el.value);
+  const c = zone(m.cps);
+  el.style.setProperty('--c', c);
+  const num = el.parentElement.querySelector('.num');
+  num.style.color = c;
+  num.innerHTML = `${m.cps}<small>${m.cps > 0 ? 'cps' : 'sekali'}</small>`;
+  save();
+});
+
+document.getElementById('master').addEventListener('click', () => {
+  cfg.app.enabled = !cfg.app.enabled;
+  masterLock = Date.now() + 1200;
+  save(true);
+  status.enabled = cfg.app.enabled;
+  paintStatus();
+});
+
+document.getElementById('add').addEventListener('click', () => {
+  cfg.macros.push({ trigger: 'XButton2', mode: 'hold', action: 'mouse', value: 'left', cps: 40, enabled: true });
+  save(); render();
+});
+
+const modal = document.getElementById('modal');document.getElementById('help').addEventListener('click', () => modal.classList.add('show'));
+document.getElementById('close-help').addEventListener('click', () => modal.classList.remove('show'));
+modal.addEventListener('click', (e) => { if (e.target === modal) modal.classList.remove('show'); });
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  if (modal.classList.contains('show')) modal.classList.remove('show');
+  if (appmodal.classList.contains('show')) appmodal.classList.remove('show');
+});
+
+// ---------- navigasi ----------
+function showView(v) {
+  document.querySelectorAll('.view').forEach((s) => s.classList.toggle('on', s.id === 'v-' + v));
+  document.querySelectorAll('.nav[data-view]').forEach((n) => n.classList.toggle('on', n.dataset.view === v));
+  if (v === 'download' && !dl.checked) dlCheck();
+}
+document.querySelectorAll('.nav[data-view]').forEach((n) => n.addEventListener('click', () => showView(n.dataset.view)));
+document.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', () => showView(b.dataset.go)));
+
+// ---------- network ----------
+function verdict(ms, loss) {
+  if (loss > 0) return ['Buruk', '#e5484d'];
+  if (ms < 50) return ['Aman', '#3fb950'];
+  if (ms <= 120) return ['Lumayan', '#4c8dff'];
+  return ['Buruk', '#e5484d'];
+}
+
+document.getElementById('ping').addEventListener('click', async () => {
+  const btn = document.getElementById('ping');
+  const out = document.getElementById('ping-out');
+  const host = document.getElementById('host').value.trim();
+  if (!host) return;
+  btn.disabled = true;
+  out.textContent = 'Mengukur…';
+  const r = await window.api.ping(host);
+  btn.disabled = false;
+  if (!r.ok) { out.innerHTML = `<span style="color:#e5484d">${r.error}</span>`; return; }
+  const [label, color] = verdict(r.avg, r.loss);
+  out.innerHTML = `<div class="big" style="color:${color}">${r.avg}<small>ms</small></div>
+    <div class="meta">${r.host} · min ${r.min} · maks ${r.max} · paket hilang ${r.loss}%</div>
+    <div class="verdict" style="color:${color};background:${color}22;border:1px solid ${color}55">${label}</div>`;
+  const d = document.getElementById('dash-ping');
+  d.textContent = r.avg + ' ms';
+  d.style.color = color;
+  document.getElementById('dash-ping-meta').textContent = `${r.host} · ${label}`;
+  lastPing = r.avg;
+  paintHero();
+});
+
+// live ping: satu paket per detik, grafik 40 detik terakhir
+function drawLive(samples) {
+  const svg = document.getElementById('live-spark');
+  const w = 600, h = 90, pad = 6;
+  const nums = samples.filter((v) => v != null);
+  if (!nums.length) { svg.innerHTML = ''; return; }
+  const top = Math.max(50, Math.max(...nums) * 1.2);
+  const step = w / 39;
+  const off = 39 - (samples.length - 1);
+  let html = '', run = [];
+  const flush = () => {
+    if (run.length > 1) {
+      html += `<polyline points="${run.join(' ')}" fill="none" stroke="#4c8dff" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+    } else if (run.length === 1) {
+      const [x, y] = run[0].split(',');
+      html += `<circle cx="${x}" cy="${y}" r="2" fill="#4c8dff"/>`;
+    }
+    run = [];
+  };
+  samples.forEach((v, i) => {
+    if (v == null) { flush(); return; }
+    run.push(`${((i + off) * step).toFixed(1)},${(h - pad - (v / top) * (h - pad * 2)).toFixed(1)}`);
+  });
+  flush();
+  svg.innerHTML = html;
+}
+
+function liveBtn(on) {
+  liveOn = on;
+  document.getElementById('live').textContent = on ? 'Hentikan' : 'Mulai';
+}
+
+document.getElementById('live').addEventListener('click', async () => {
+  const out = document.getElementById('live-out');
+  if (liveOn) {
+    await window.api.liveStop();
+    liveBtn(false);
+    out.textContent = 'Live ping dihentikan.';
+    document.getElementById('live-spark').innerHTML = '';
+    return;
+  }
+  const host = document.getElementById('host').value.trim();
+  const r = await window.api.liveStart(host);
+  if (!r.ok) { out.textContent = r.error; return; }
+  document.getElementById('live-host').textContent = host + ' · 1 paket/detik';
+  out.textContent = 'Menunggu balasan dari ' + host + '…';
+  liveBtn(true);
+});
+
+async function liveTick() {
+  if (!liveOn) return;
+  const s = await window.api.live();
+  if (!s.on) { liveBtn(false); return; }
+  const out = document.getElementById('live-out');
+  if (s.error) { out.innerHTML = `<span style="color:#e5484d">${s.error}</span>`; return; }
+  if (s.cur == null) {
+    out.textContent = `Belum ada balasan dari ${s.host}` + (s.bad ? ` · ${s.bad} paket hilang` : '');
+  } else {
+    const [label, color] = verdict(s.cur, s.loss);
+    out.innerHTML = `<div class="big" style="color:${color}">${s.cur}<small>ms</small></div>
+      <div class="meta">min ${s.min} · rata ${s.avg} · maks ${s.max} · hilang ${s.loss}% · ${label}</div>`;
+    lastPing = s.cur;
+    const d = document.getElementById('dash-ping');
+    d.textContent = s.cur + ' ms';
+    d.style.color = color;
+    document.getElementById('dash-ping-meta').textContent = `${s.host} · live`;
+    paintHero();
+  }
+  drawLive(s.samples);
+}
+
+document.getElementById('speed').addEventListener('click', async () => {
+  const btn = document.getElementById('speed');
+  const out = document.getElementById('speed-out');
+  btn.disabled = true;
+  out.textContent = 'Mengunduh data uji…';
+  const r = await window.api.speed();
+  btn.disabled = false;
+  if (!r.ok) { out.innerHTML = `<span style="color:#e5484d">${r.error}</span>`; return; }
+  const color = r.mbps >= 25 ? '#3fb950' : r.mbps >= 8 ? '#4c8dff' : '#e5484d';
+  out.innerHTML = `<div class="big" style="color:${color}">${r.mbps}<small>Mbps</small></div>
+    <div class="meta">${r.mb} MB dalam ${r.secs} s</div>`;
+});
+
+// ---------- system monitor ----------
+const RING = 326.7;
+const hist = { cpu: [], gpu: [] };
+
+function heat(v, warn, danger) {
+  return v >= danger ? '#e5484d' : v >= warn ? '#4c8dff' : '#3fb950';
+}
+
+function setRing(id, pct) {
+  const el = document.getElementById(id);
+  el.style.strokeDashoffset = (RING * (1 - Math.min(100, pct) / 100)).toFixed(1);
+  el.style.stroke = heat(pct, 60, 85);
+}
+
+function drawSpark() {
+  const svg = document.getElementById('spark');
+  const w = 600, h = 110;
+  const line = (arr, color) => {
+    if (arr.length < 2) return '';
+    const step = w / 59;
+    const off = 59 - (arr.length - 1);
+    const pts = arr.map((v, i) => `${((i + off) * step).toFixed(1)},${(h - (v / 100) * (h - 8) - 4).toFixed(1)}`).join(' ');
+    return `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+  };
+  svg.innerHTML = line(hist.cpu, '#6c5ce7') + line(hist.gpu, '#3fb950');
+}
+
+function drawCores(per) {
+  const box = document.getElementById('cores');
+  if (box.children.length !== per.length) {
+    box.innerHTML = per.map((_, i) => `<div class="core"><span>C${i + 1}</span><span class="bar"><i></i></span></div>`).join('');
+  }
+  Array.from(box.children).forEach((el, i) => {
+    const bar = el.querySelector('i');
+    bar.style.width = per[i] + '%';
+    bar.style.background = heat(per[i], 60, 85);
+  });
+}
+
+async function sysTick() {
+  const s = await window.api.sys();
+  const g = s.gpu;
+
+  setRing('cpu-ring', s.cpu.load);
+  document.getElementById('cpu-val').innerHTML = `${s.cpu.load}<small>%</small>`;
+  document.getElementById('cpu-sub').textContent = `${s.cpu.cores} thread`;
+  document.getElementById('cpu-foot').textContent = `${s.cpu.speed} MHz`;
+
+  setRing('gpu-ring', g ? g.load : 0);
+  document.getElementById('gpu-val').innerHTML = g ? `${g.load}<small>%</small>` : '—';
+  document.getElementById('gpu-sub').textContent = g ? g.name.replace(/NVIDIA\s+|GeForce\s+/gi, '') : 'tidak terdeteksi';
+  document.getElementById('gpu-foot').textContent = g
+    ? `${g.temp != null ? g.temp + '°C · ' : ''}VRAM ${(g.vramUsed / 1024).toFixed(1)}/${(g.vramTotal / 1024).toFixed(0)} GB`
+    : '—';
+
+  const ramPct = Math.round((s.mem.used / s.mem.total) * 100);
+  setRing('ram-ring', ramPct);
+  document.getElementById('ram-val').innerHTML = `${ramPct}<small>%</small>`;
+  document.getElementById('ram-sub').textContent = `${(s.mem.total / 1e9).toFixed(0)} GB`;
+  document.getElementById('ram-foot').textContent =
+    `${(s.mem.used / 1e9).toFixed(1)} / ${(s.mem.total / 1e9).toFixed(1)} GB terpakai`;
+
+  hist.cpu.push(s.cpu.load);
+  hist.gpu.push(g ? g.load : 0);
+  if (hist.cpu.length > 60) hist.cpu.shift();
+  if (hist.gpu.length > 60) hist.gpu.shift();
+  drawSpark();
+  drawCores(s.cpu.per);
+
+  const d = document.getElementById('dash-sys');
+  d.textContent = `${s.cpu.load}%`;
+  d.style.color = heat(s.cpu.load, 60, 85);
+  document.getElementById('dash-sys-meta').textContent =
+    `CPU · GPU ${g ? g.load + '%' : '—'} · RAM ${ramPct}%`;
+
+  lastCpu = s.cpu.load;
+  paintHero();
+}
+
+// ---------- tools: launcher, clipboard, cleaner, wifi ----------
+let tools = { launchers: [], alert: { on: false, ms: 120, via: 'both' }, settings: { autostart: false, startHidden: false, accent: '#6c5ce7' }, overlay: false, failed: [] };
+let lcap = null;
+
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+
+function targetText(t) {
+  return t && t.startsWith('appid:') ? 'Aplikasi Windows' : t;
+}
+
+function targetsText(list) {
+  const paths = (list || []).filter((t) => t && !t.startsWith('appid:')).map(targetText);
+  if (paths.length) return paths.join(' · ');
+  return (list || []).length ? 'Aplikasi Windows' : 'Tidak ada app';
+}
+
+const AKEY = {
+  ' ': 'Space', ArrowUp: 'Up', ArrowDown: 'Down', ArrowLeft: 'Left', ArrowRight: 'Right',
+  Escape: 'Escape', Enter: 'Enter', Tab: 'Tab', Backspace: 'Backspace', Delete: 'Delete',
+  Home: 'Home', End: 'End', PageUp: 'PageUp', PageDown: 'PageDown', Insert: 'Insert',
+};
+
+function paintLaunchers() {
+  const q = (document.getElementById('lsearch').value || '').toLowerCase();
+  const box = document.getElementById('llist');
+  if (!tools.launchers.length) {
+    box.innerHTML = '<div class="meta">Belum ada aplikasi. Klik + Tambah lalu pilih dari daftar aplikasi terinstal.</div>';
+    return;
+  }
+  const rows = tools.launchers.map((l, i) => ({ l, i }))
+    .filter(({ l }) => !q || (l.name + ' ' + (l.targets || []).join(' ')).toLowerCase().includes(q));
+  if (!rows.length) { box.innerHTML = '<div class="meta">Tidak ada yang cocok.</div>'; return; }
+  box.innerHTML = rows.map(({ l, i }) => {
+    const bad = (tools.failed || []).includes(i);
+    const n = (l.targets || []).length;
+    return `<div class="lrow">
+    <div class="lname"><b>${esc(l.name)}${n > 1 ? ` <span class="meta" style="display:inline;margin:0">${n} app</span>` : ''}</b><em>${esc(targetsText(l.targets))}${bad ? ' · <span style="color:#ff9a9d">hotkey bentrok</span>' : ''}</em></div>
+    <button class="mini ${lcap === i ? 'cap' : ''} ${bad ? 'bad' : ''}" data-lk="${i}" title="${bad ? 'Hotkey ini dipakai app lain / tidak didukung' : ''}">${lcap === i ? 'Tekan…' : esc(l.key || 'Atur keybind')}</button>
+    <button class="mini" data-ladd="${i}" title="Tambah app ke keybind ini">+ App</button>
+    <button class="mini" data-lrun="${i}">Buka</button>
+    <button class="mini" data-ldel="${i}">×</button>
+  </div>`;
+  }).join('');
+}
+
+async function saveLaunchers() {
+  const r = await window.api.toolsSave({ launchers: tools.launchers });
+  tools.failed = (r && r.failed) || [];
+  paintLaunchers();
+}
+
+let appsCache = null;
+let appsShown = [];
+let pickFor = null; // null = entri baru, angka = tambah app ke entri itu
+
+async function paintApps() {
+  const q = (document.getElementById('asearch').value || '').toLowerCase();
+  appsShown = appsCache.filter((a) => !q || a.name.toLowerCase().includes(q));
+  document.getElementById('acount').textContent = appsShown.length + ' aplikasi';
+  const box = document.getElementById('applist');
+  if (!appsShown.length) {
+    box.innerHTML = '<div class="meta">Tidak ada yang cocok. Pakai "Pilih file manual…" di bawah.</div>';
+    return;
+  }
+  box.innerHTML = appsShown.slice(0, 500).map((a, i) => `<button class="arow" data-app="${i}">${esc(a.name)}</button>`).join('');
+}
+
+const appmodal = document.getElementById('appmodal');
+
+async function openApps(forIndex) {
+  pickFor = forIndex;
+  appmodal.classList.add('show');
+  document.getElementById('asearch').value = '';
+  document.getElementById('applist').innerHTML = '<div class="meta">Memuat daftar aplikasi…</div>';
+  document.getElementById('appmodal').querySelector('h2').textContent =
+    forIndex == null ? 'Pilih aplikasi' : 'Tambah app ke keybind ini';
+  if (!appsCache) appsCache = await window.api.apps();
+  paintApps();
+  document.getElementById('asearch').focus();
+}
+
+function addAppTo(picked) {
+  if (pickFor == null) {
+    tools.launchers.push({ name: picked.name, targets: [picked.target], key: '', enabled: true });
+  } else {
+    const l = tools.launchers[pickFor];
+    if (l && !l.targets.includes(picked.target)) {
+      l.targets.push(picked.target);
+      l.name = l.name ? l.name + ' + ' + picked.name : picked.name;
+    }
+  }
+  pickFor = null;
+  return saveLaunchers();
+}
+
+document.getElementById('ladd').addEventListener('click', () => openApps(null));
+
+document.getElementById('asearch').addEventListener('input', paintApps);
+
+document.getElementById('applist').addEventListener('click', async (e) => {
+  const el = e.target.closest('[data-app]');
+  if (!el) return;
+  const a = appsShown[Number(el.dataset.app)];
+  if (!a) return;
+  appmodal.classList.remove('show');
+  await addAppTo(a);
+});
+
+document.getElementById('apick').addEventListener('click', async () => {
+  appmodal.classList.remove('show');
+  const picked = await window.api.pickApp();
+  if (!picked) return;
+  await addAppTo(picked);
+});
+
+document.getElementById('close-apps').addEventListener('click', () => appmodal.classList.remove('show'));
+appmodal.addEventListener('click', (e) => { if (e.target === appmodal) appmodal.classList.remove('show'); });
+
+document.getElementById('lsearch').addEventListener('input', paintLaunchers);
+
+document.getElementById('llist').addEventListener('click', (e) => {
+  const el = e.target.closest('[data-lk],[data-lrun],[data-ldel],[data-ladd]');
+  if (!el) return;
+  if (el.dataset.lk != null) { lcap = Number(el.dataset.lk); paintLaunchers(); return; }
+  if (el.dataset.ladd != null) { openApps(Number(el.dataset.ladd)); return; }
+  if (el.dataset.lrun != null) { window.api.runApp(tools.launchers[Number(el.dataset.lrun)].targets); return; }
+  tools.launchers.splice(Number(el.dataset.ldel), 1);
+  saveLaunchers();
+});
+
+document.addEventListener('keydown', (e) => {
+  if (lcap == null) return;
+  e.preventDefault();
+  e.stopPropagation();
+  if (e.key === 'Escape') { lcap = null; paintLaunchers(); return; }
+  if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key) || e.repeat) return;
+  const isFn = /^F([1-9]|1[0-9]|2[0-4])$/.test(e.key);
+  if (!(e.ctrlKey || e.altKey || e.shiftKey || e.metaKey) && !isFn) return;
+  const mods = [];
+  if (e.ctrlKey) mods.push('Control');
+  if (e.altKey) mods.push('Alt');
+  if (e.shiftKey) mods.push('Shift');
+  if (e.metaKey) mods.push('Super');
+  const k = e.key.length === 1 ? e.key.toUpperCase() : (AKEY[e.key] || e.key);
+  tools.launchers[lcap].key = [...mods, k].join('+');
+  lcap = null;
+  saveLaunchers();
+}, true);
+
+let clipSig = null;
+async function clipTick() {
+  const list = await window.api.clips();
+  const sig = list.map((c) => c.at).join(',');
+  if (sig === clipSig) return;
+  clipSig = sig;
+  const box = document.getElementById('clist');
+  if (!list.length) {
+    box.innerHTML = '<div class="meta">Belum ada riwayat. Copy sesuatu dulu.</div>';
+    return;
+  }
+  box.innerHTML = list.map((c, i) => `<div class="crow" data-clip="${i}">
+    <span class="t">${esc(c.text)}</span>
+    <span class="w">${new Date(c.at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</span>
+  </div>`).join('');
+}
+
+document.getElementById('clist').addEventListener('click', async (e) => {
+  const el = e.target.closest('[data-clip]');
+  if (!el) return;
+  await window.api.clipCopy(Number(el.dataset.clip));
+  const w = el.querySelector('.w');
+  w.textContent = 'Tersalin';
+  setTimeout(clipTick, 1200);
+});
+
+document.getElementById('cclr').addEventListener('click', async () => {
+  await window.api.clipClear();
+  clipSig = null;
+  clipTick();
+});
+
+document.getElementById('cscan').addEventListener('click', async () => {
+  const btn = document.getElementById('cscan');
+  const size = document.getElementById('clean-size');
+  btn.disabled = true;
+  size.textContent = 'Memindai…';
+  const r = await window.api.cleanScan();
+  size.textContent = `${(r.bytes / 1048576).toFixed(1)} MB · ${r.files} file`;
+  document.getElementById('clean-info').innerHTML =
+    r.list.map((x) => `${esc(x.path)} — ${(x.bytes / 1048576).toFixed(1)} MB`).join('<br>');
+  document.getElementById('crun').disabled = r.bytes <= 0;
+  btn.disabled = false;
+});
+
+document.getElementById('crun').addEventListener('click', async () => {
+  const btn = document.getElementById('crun');
+  btn.disabled = true;
+  document.getElementById('clean-out').textContent = 'Menghapus…';
+  const r = await window.api.cleanRun();
+  document.getElementById('clean-out').textContent = `${(r.freed / 1048576).toFixed(1)} MB dibebaskan`;
+  document.getElementById('clean-size').textContent = 'Belum dipindai';
+  document.getElementById('clean-info').textContent = 'Temp Windows + temp user + Recycle Bin.';
+});
+
+async function wifiTick() {
+  const w = await window.api.wifi();
+  const st = String(w.state || '').toLowerCase();
+  document.getElementById('wifi-ssid').textContent = w.ssid
+    ? `${w.ssid} · ${w.signal != null ? w.signal + '%' : 'sinyal ?'}`
+    : (st.includes('disconnect') ? 'Tidak terhubung' : (w.state || 'Tidak terhubung'));
+  document.getElementById('wifi-info').innerHTML =
+    `IP lokal <b>${esc(w.local || '—')}</b> · IP publik <b>${esc(w.public || '—')}</b>`;
+  document.getElementById('dns-now').textContent = w.dns && w.dns.length ? w.dns.join(', ') : 'otomatis';
+}
+
+document.getElementById('wifi-refresh').addEventListener('click', wifiTick);
+
+document.querySelectorAll('[data-dns]').forEach((b) => b.addEventListener('click', async () => {
+  const out = document.getElementById('dns-out');
+  out.textContent = 'Mengubah…';
+  const r = await window.api.dnsSet(b.dataset.dns);
+  out.textContent = r.ok ? 'DNS diganti' : r.error;
+  if (r.ok) wifiTick();
+}));
+
+function saveAlert() {
+  tools.alert.ms = Number(document.getElementById('alert-ms').value) || 120;
+  tools.alert.on = document.getElementById('alert-on').checked;
+  tools.alert.via = document.getElementById('alert-via').value;
+  window.api.toolsSave({ alert: tools.alert });
+}
+
+document.getElementById('alert-on').addEventListener('change', saveAlert);
+document.getElementById('alert-ms').addEventListener('change', saveAlert);
+document.getElementById('alert-via').addEventListener('change', saveAlert);
+
+// ---------- HUD ----------
+let hud = null;
+let hudTimer = null;
+
+function paintHud() {
+  document.getElementById('hud-on').checked = hud.on;
+  document.getElementById('hud-op').value = hud.opacity;
+  document.getElementById('hud-op-v').textContent = hud.opacity + '%';
+  document.getElementById('hud-scale').value = hud.scale;
+  document.getElementById('hud-scale-v').textContent = hud.scale + '%';
+  document.querySelectorAll('[data-hpos]').forEach((b) => b.classList.toggle('on', b.dataset.hpos === hud.pos));
+  document.querySelectorAll('[data-hitem]').forEach((c) => { c.checked = !!hud.items[c.dataset.hitem]; });
+}
+
+function saveHud() {
+  clearTimeout(hudTimer);
+  hudTimer = setTimeout(() => window.api.hudSet(hud), 150);
+}
+
+document.getElementById('hud-on').addEventListener('change', (e) => {
+  tools.overlay = e.target.checked;
+  document.getElementById('ovl').checked = e.target.checked;
+  window.api.overlay(e.target.checked);
+});
+
+document.querySelectorAll('[data-hpos]').forEach((b) => b.addEventListener('click', () => {
+  hud.pos = b.dataset.hpos;
+  paintHud();
+  saveHud();
+}));
+
+document.getElementById('hud-op').addEventListener('input', (e) => {
+  hud.opacity = Number(e.target.value);
+  document.getElementById('hud-op-v').textContent = hud.opacity + '%';
+  saveHud();
+});
+
+document.getElementById('hud-scale').addEventListener('input', (e) => {
+  hud.scale = Number(e.target.value);
+  document.getElementById('hud-scale-v').textContent = hud.scale + '%';
+  saveHud();
+});
+
+document.querySelectorAll('[data-hitem]').forEach((c) => c.addEventListener('change', () => {
+  hud.items[c.dataset.hitem] = c.checked;
+  saveHud();
+}));
+
+document.getElementById('ovl').addEventListener('change', (e) => {
+  tools.overlay = e.target.checked;
+  document.getElementById('hud-on').checked = e.target.checked;
+  window.api.overlay(e.target.checked);
+});
+
+// ---------- pengaturan ----------
+let settings = { autostart: false, startHidden: false, accent: '#6c5ce7' };
+
+function applyAccent() {
+  document.documentElement.style.setProperty('--accent', settings.accent || '#6c5ce7');
+}
+
+function paintSettings() {
+  document.getElementById('set-auto').checked = !!settings.autostart;
+  document.getElementById('set-hidden').checked = !!settings.startHidden;
+  document.querySelectorAll('[data-accent]').forEach((b) => {
+    b.classList.toggle('on', b.dataset.accent.toLowerCase() === String(settings.accent).toLowerCase());
+  });
+  applyAccent();
+}
+
+function saveSettings() {
+  applyAccent();
+  window.api.toolsSave({ settings });
+}
+
+document.getElementById('set-auto').addEventListener('change', (e) => {
+  settings.autostart = e.target.checked;
+  saveSettings();
+});
+
+document.getElementById('set-hidden').addEventListener('change', (e) => {
+  settings.startHidden = e.target.checked;
+  saveSettings();
+});
+
+document.getElementById('acc-row').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-accent]');
+  if (!b) return;
+  settings.accent = b.dataset.accent;
+  paintSettings();
+  saveSettings();
+});
+
+// ---------- download ----------
+const dl = { checked: false, tools: null, items: [], busy: false, mode: 'mp4', quality: 'best' };
+
+function fmtDur(s) {
+  if (!s) return '';
+  const m = Math.floor(s / 60);
+  const ss = s % 60;
+  return m ? m + ':' + String(ss).padStart(2, '0') : s + ' dtk';
+}
+
+async function dlCheck() {
+  const r = await window.api.dlCheck();
+  dl.checked = true;
+  dl.tools = r;
+  document.getElementById('dl-dir').textContent = r.dir;
+  document.getElementById('dl-dir').title = r.dir;
+  document.getElementById('dl-go').disabled = !r.ytdlp;
+  const lines = [];
+  if (!r.ytdlp) lines.push('<b>yt-dlp belum ada.</b> Download <code>yt-dlp.exe</code> dari halaman rilis, taruh di folder app ini atau tambahkan ke PATH, lalu klik Cek ulang.');
+  if (!r.ffmpeg) lines.push('<b>ffmpeg belum ada.</b> MP3 dan penggabungan video+audio butuh ffmpeg. Download build ffmpeg, taruh <code>ffmpeg.exe</code> di PATH atau folder app, lalu klik Cek ulang.');
+  document.getElementById('dl-req').hidden = !lines.length;
+  document.getElementById('dl-req-text').innerHTML = lines.join('<br>');
+  if (r.ytdlp && r.ffmpeg) document.getElementById('dl-state').textContent = 'Siap · yt-dlp ' + (r.ytdlp.version || '') + ' · ffmpeg siap';
+}
+
+function paintDl() {
+  document.getElementById('dl-list').innerHTML = dl.items.map((it, i) => `<label class="dl-item">
+    <input type="checkbox" data-di="${i}" ${it.sel ? 'checked' : ''}>
+    <span class="t" title="${esc(it.title)}">${esc(it.title)}</span>
+    <span class="st" id="dl-st-${i}">${fmtDur(it.duration)}</span>
+  </label>`).join('');
+  document.getElementById('dl-info').hidden = !dl.items.length;
+  const n = dl.items.filter((x) => x.sel).length;
+  document.getElementById('dl-all').checked = n > 0 && n === dl.items.length;
+  document.getElementById('dl-start').disabled = dl.busy || !n;
+}
+
+async function dlAnalyze() {
+  const url = document.getElementById('dl-url').value.trim();
+  if (!url) return;
+  const btn = document.getElementById('dl-go');
+  btn.disabled = true;
+  btn.textContent = 'Menganalisa…';
+  document.getElementById('dl-state').textContent = '';
+  const r = await window.api.dlAnalyze(url);
+  btn.textContent = 'Analisa';
+  btn.disabled = !(dl.tools && dl.tools.ytdlp);
+  if (!r.ok) {
+    document.getElementById('dl-state').textContent = 'Gagal: ' + r.error;
+    document.getElementById('dl-info').hidden = true;
+    return;
+  }
+  dl.items = r.entries.map((e) => ({ ...e, sel: true }));
+  document.getElementById('dl-title').textContent = r.title;
+  document.getElementById('dl-sub').textContent = [r.uploader, r.count > 1 ? r.count + ' item' : ''].filter(Boolean).join(' · ');
+  document.getElementById('dl-bar').style.width = '0';
+  paintDl();
+  document.getElementById('dl-state').textContent = r.count + ' item siap diunduh';
+}
+
+document.getElementById('dl-go').addEventListener('click', dlAnalyze);
+document.getElementById('dl-url').addEventListener('keydown', (e) => { if (e.key === 'Enter') dlAnalyze(); });
+
+document.getElementById('dl-list').addEventListener('change', (e) => {
+  const c = e.target.closest('[data-di]');
+  if (!c) return;
+  dl.items[Number(c.dataset.di)].sel = c.checked;
+  paintDl();
+});
+
+document.getElementById('dl-all').addEventListener('change', (e) => {
+  dl.items.forEach((it) => { it.sel = e.target.checked; });
+  paintDl();
+});
+
+document.getElementById('dl-mode').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-mode]');
+  if (!b) return;
+  dl.mode = b.dataset.mode;
+  document.querySelectorAll('#dl-mode button').forEach((x) => x.classList.toggle('on', x === b));
+  document.getElementById('dl-q').style.display = dl.mode === 'mp3' ? 'none' : '';
+});
+
+document.getElementById('dl-q').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-q]');
+  if (!b) return;
+  dl.quality = b.dataset.q;
+  document.querySelectorAll('#dl-q button').forEach((x) => x.classList.toggle('on', x === b));
+});
+
+document.getElementById('dl-start').addEventListener('click', async () => {
+  const picked = [];
+  dl.items.forEach((x, i) => { if (x.sel) picked.push({ url: x.url, title: x.title, key: i }); });
+  if (!picked.length) return;
+  const btn = document.getElementById('dl-start');
+  btn.disabled = true;
+  const r = await window.api.dlStart({ items: picked, mode: dl.mode, quality: dl.quality });
+  if (!r.ok) {
+    document.getElementById('dl-state').textContent = r.error;
+    btn.disabled = false;
+    return;
+  }
+  dl.busy = true;
+  document.getElementById('dl-stop').disabled = false;
+  document.getElementById('dl-state').textContent = 'Mulai…';
+  document.getElementById('dl-bar').style.width = '0';
+  document.querySelectorAll('.dl-item').forEach((el) => el.classList.remove('done', 'err'));
+});
+
+document.getElementById('dl-stop').addEventListener('click', () => { window.api.dlStop(); });
+document.getElementById('dl-folder').addEventListener('click', () => window.api.dlFolder());
+document.getElementById('dl-recheck').addEventListener('click', dlCheck);
+document.getElementById('dl-open-yt').addEventListener('click', () => window.api.dlSite('ytdlp'));
+document.getElementById('dl-open-ff').addEventListener('click', () => window.api.dlSite('ffmpeg'));
+
+window.api.onDlProgress((p) => {
+  if (p.done) {
+    dl.busy = false;
+    document.getElementById('dl-stop').disabled = true;
+    document.getElementById('dl-start').disabled = !dl.items.some((x) => x.sel);
+    document.getElementById('dl-state').textContent = p.cancelled
+      ? 'Dihentikan'
+      : 'Selesai · ' + p.ok + ' berhasil' + (p.fail ? ' · ' + p.fail + ' gagal' : '');
+    if (!p.cancelled) document.getElementById('dl-bar').style.width = '100%';
+    return;
+  }
+  const row = document.getElementById('dl-st-' + p.key);
+  if (row) {
+    const box = row.closest('.dl-item');
+    box.classList.toggle('done', p.status === 'done');
+    box.classList.toggle('err', p.status === 'error');
+    row.textContent = p.status === 'downloading' ? p.percent + '%'
+      : p.status === 'processing' ? 'Memproses…'
+      : p.status === 'done' ? 'Selesai'
+      : p.status === 'error' ? 'Gagal'
+      : p.status === 'cancelled' ? 'Dibatalkan' : '';
+    row.title = p.error || '';
+  }
+  if (p.status !== 'done' && p.status !== 'error' && p.status !== 'cancelled') {
+    document.getElementById('dl-bar').style.width = (p.percent || 0) + '%';
+    document.getElementById('dl-state').textContent =
+      (p.index + 1) + '/' + p.total + ' · ' + (p.title || '') +
+      (p.speed ? ' · ' + p.speed : '') + (p.eta ? ' · ETA ' + p.eta : '');
+  }
+});
+
+(async () => {
+  const r = await window.api.load();
+  cfg = r.cfg;
+  status = r.status;
+  presets = await window.api.presets();
+  tools = await window.api.tools();
+  settings = tools.settings || settings;
+  hud = await window.api.hud();
+  render();
+  paintPresets();
+  paintStatus();
+  paintHero();
+  paintLaunchers();
+  paintHud();
+  paintSettings();
+  document.getElementById('ovl').checked = tools.overlay === true;
+  document.getElementById('alert-on').checked = !!tools.alert.on;
+  document.getElementById('alert-ms').value = tools.alert.ms || 120;
+  document.getElementById('alert-via').value = tools.alert.via || 'both';
+  clipTick();
+  setInterval(clipTick, 1200);
+  wifiTick();
+  sysTick();
+  setInterval(sysTick, 1000);
+  setInterval(liveTick, 1000);
+  setInterval(async () => {
+    status = await window.api.status();
+    // master bisa diubah lewat hotkey di engine: samakan state lokal supaya save berikutnya tidak membaliknya
+    if (Date.now() > masterLock) cfg.app.enabled = status.enabled;
+    paintStatus();
+  }, 400);
+})();
+</script>
+</body>
+</html>

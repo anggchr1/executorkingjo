@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; background: transparent; overflow: hidden; user-select: none; }
+  body {
+    width: 300px; height: 122px; font-family: 'Segoe UI', system-ui, sans-serif;
+    transform-origin: top left;
+  }
+  .hud {
+    display: flex; flex-direction: column; gap: 7px; padding: 9px 12px;
+    background: rgba(14, 16, 19, var(--a, .84));
+    border: 1px solid rgba(120, 130, 160, .22); border-radius: 10px; color: #e6e9ef;
+  }
+  .hud.hide { display: none; }
+  .row { display: flex; align-items: center; gap: 7px; font-size: 11px; color: #9aa3b2; }
+  .g { display: inline-flex; align-items: center; gap: 7px; }
+  .g.hide, .sep.hide { display: none; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: #4b5262; }
+  .dot.on { background: #3fb950; box-shadow: 0 0 7px rgba(63, 185, 80, .6); }
+  .v { color: #e6e9ef; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .sep { width: 1px; height: 10px; background: #2a3140; margin: 0 2px; }
+  .run { margin-left: auto; font-size: 10px; color: #8b7cff; }
+  .alert { color: #ffb86b; font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="hud" id="hud">
+  <div class="row" id="r-macro">
+    <span class="dot" id="dot"></span><span class="v" id="state">Macro off</span><span class="run" id="run"></span>
+  </div>
+  <div class="row" id="r-stat">
+    <span class="g" id="g-ping"><span>Ping</span><span class="v" id="ping">—</span></span>
+    <span class="sep" id="sep"></span>
+    <span class="g" id="g-cpu"><span>CPU</span><span class="v" id="cpu">—</span></span>
+  </div>
+  <div class="row" id="r-alert" style="display:none"><span class="alert" id="alert"></span></div>
+</div>
+<script>
+  const $ = (id) => document.getElementById(id);
+  let hud = { opacity: 84, scale: 100, items: { macro: true, run: true, ping: true, cpu: true } };
+  let alertTimer = null;
+
+  function applyHud(h) {
+    hud = h;
+    const it = h.items || {};
+    document.body.style.transform = 'scale(' + (h.scale / 100) + ')';
+    $('hud').style.setProperty('--a', (h.opacity / 100).toFixed(2));
+    $('r-macro').style.display = it.macro || it.run ? '' : 'none';
+    $('dot').style.display = it.macro ? '' : 'none';
+    $('state').style.display = it.macro ? '' : 'none';
+    $('run').style.display = it.run ? '' : 'none';
+    $('g-ping').classList.toggle('hide', !it.ping);
+    $('g-cpu').classList.toggle('hide', !it.cpu);
+    $('sep').classList.toggle('hide', !(it.ping && it.cpu));
+    $('r-stat').style.display = it.ping || it.cpu ? '' : 'none';
+    $('hud').classList.toggle('hide', !(it.macro || it.run || it.ping || it.cpu));
+  }
+
+  async function tick() {
+    try {
+      const [h, s, l, y] = await Promise.all([
+        window.api.hud(), window.api.status(), window.api.live(), window.api.sys(),
+      ]);
+      applyHud(h);
+      const n = (s.running || []).filter(Boolean).length;
+      $('dot').className = 'dot' + (s.enabled ? ' on' : '');
+      $('state').textContent = s.enabled ? 'Macro on' : 'Macro off';
+      $('run').textContent = n ? n + ' jalan' : '';
+      $('ping').textContent = l && l.on ? (l.cur != null ? l.cur + ' ms' : '…') : '—';
+      $('cpu').textContent = y.cpu.load + '%';
+    } catch {}
+  }
+
+  window.api.onAlert((m) => {
+    $('alert').textContent = m.title + ' · ' + m.body;
+    $('r-alert').style.display = '';
+    clearTimeout(alertTimer);
+    alertTimer = setTimeout(() => { $('r-alert').style.display = 'none'; }, 7000);
+  });
+
+  tick();
+  setInterval(tick, 1000);
+</script>
+</body>
+</html>
