@@ -39,6 +39,16 @@ return
 
 ; ---------- konfigurasi ----------
 
+NormalizeHotkey(key) {
+    key := RegExReplace(key, "[$*~^!+#]+", "")
+    return Trim(key)
+}
+
+Lower(s) {
+    StringLower, s, s
+    return s
+}
+
 LoadConfig() {
     global
     empty := ""
@@ -93,8 +103,8 @@ Apply() {
             hk := "$*" . m.trigger
             Hotkey, %hk%, OnMacro, On
             registered.Push(hk)
-            ; Simpan pakai nama trigger tanpa $*, agar cocok dengan A_ThisHotkey
-            hkMap[Lower(m.trigger)] := m
+            keyName := Lower(NormalizeHotkey(m.trigger))
+            hkMap[keyName] := m
         }
     }
     WriteStatus()
@@ -122,16 +132,11 @@ SaveEnabled() {
     FileGetTime, stamp, %cfgFile%, M
 }
 
-RemoveDebugTip:
+RemoveTip:
     ToolTip
     return
 
 ; ---------- aksi ----------
-
-Lower(s) {
-    StringLower, s, s
-    return s
-}
 
 ReleaseAll() {
     Critical, On
@@ -160,13 +165,6 @@ PreciseSleep(ms) {
 
 DoAction(m) {
     Critical, On
-    ; Debug: tampilkan apa yang akan dikirim
-    t := m.trigger
-    a := m.action
-    v := m.value
-    c := m.cps
-    ToolTip, ENGINE DEBUG: trigger=%t% action=%a% value=[%v%] cps=%c%
-    SetTimer, RemoveDebugTip, -1500
     if (m.action = "mouse") {
         if (m.value = "right") {
             DllCall("mouse_event", "UInt", 0x08, "UInt", 0, "UInt", 0, "UInt", 0, "UPtr", 0)
@@ -179,7 +177,8 @@ DoAction(m) {
             DllCall("mouse_event", "UInt", 0x04, "UInt", 0, "UInt", 0, "UInt", 0, "UPtr", 0)
         }
     } else {
-        Send, {%v%}
+        keyText := "{" . m.value . "}"
+        SendInput, %keyText%
     }
     Critical, Off
 }
@@ -194,7 +193,8 @@ StopAll() {
 ; ---------- hotkey ----------
 
 OnMacro:
-    m := hkMap[Lower(A_ThisHotkey)]
+    key := NormalizeHotkey(A_ThisHotkey)
+    m := hkMap[Lower(key)]
     if (!m || !m.enabled || !masterOn)
         return
     if (m.cps <= 0) {
@@ -206,7 +206,8 @@ OnMacro:
             return
         m.running := true
         WriteStatus()
-        while (GetKeyState(m.trigger, "P")) {
+        keyName := NormalizeHotkey(m.trigger)
+        while (GetKeyState(keyName, "P")) {
             DoAction(m)
             PreciseSleep(m.delay)
         }
@@ -229,6 +230,8 @@ OnMacro:
 
 OnMaster:
     masterOn := !masterOn
+    ToolTip % "Macro: " (masterOn ? "ON" : "OFF")
+    SetTimer, RemoveTip, -800
     StopAll()
     SaveEnabled()
     Apply()
@@ -237,6 +240,8 @@ OnMaster:
 OnPanic:
     StopAll()
     ReleaseAll()
+    ToolTip % "PANIC: semua tombol dilepas"
+    SetTimer, RemoveTip, -1500
     WriteStatus()
     return
 
@@ -258,7 +263,10 @@ Watch:
     return
 
 Cleanup:
-    StopAll()
-    ReleaseAll()
+    Critical, On
+    DllCall("mouse_event", "UInt", 0x04, "UInt", 0, "UInt", 0, "UInt", 0, "UPtr", 0)
+    DllCall("mouse_event", "UInt", 0x10, "UInt", 0, "UInt", 0, "UInt", 0, "UPtr", 0)
+    DllCall("mouse_event", "UInt", 0x40, "UInt", 0, "UInt", 0, "UInt", 0, "UPtr", 0)
+    Critical, Off
     ExitApp
     return
