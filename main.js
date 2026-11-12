@@ -81,6 +81,16 @@ function writeConfig(cfg) {
     L.push('enabled=' + (m.enabled ? 1 : 0));
   });
   fs.writeFileSync(CFG, L.join('\r\n') + '\r\n', 'utf8');
+  
+  // Also update status.ini
+  const S = ['[app]'];
+  S.push('enabled=' + (cfg.app.enabled ? 1 : 0));
+  S.push('paused=' + (cfg.app.paused ? 1 : 0));
+  cfg.macros.forEach((m, i) => {
+    S.push('', '[m' + (i + 1) + ']');
+    S.push('running=' + (m.running ? 1 : 0));
+  });
+  fs.writeFileSync(STAT, S.join('\r\n') + '\r\n', 'utf8');
 }
 
 function readStatus() {
