@@ -4,6 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const { spawn, execFile } = require('child_process');
 const { pathToFileURL } = require('url');
+const { DiscordLyricsPresence } = require('./discord-lyrics');
 
 const ROOT = __dirname;
 const CFG = path.join(ROOT, 'config.ini');
@@ -11,9 +12,6 @@ const STAT = path.join(ROOT, 'status.ini');
 const SLOTS = path.join(ROOT, 'presets.json');
 const TOOLS = path.join(ROOT, 'tools.json');
 const ENGINE = path.join(ROOT, 'engine.ahk');
-const DISCORDST_DIR = 'D:\\ME\\KULIAH\\vscode\\DiscordSt';
-const DISCORDST_APP = path.join(DISCORDST_DIR, 'app.js');
-const DISCORDST_ENV = path.join(DISCORDST_DIR, '.env');
 const ICON = path.join(ROOT, 'assets', 'icon.png');
 const AHK = 'C:\\Program Files\\AutoHotkey\\v1.1.37.02\\AutoHotkeyU64.exe';
 
@@ -21,9 +19,9 @@ let engine = null;
 let win = null;
 let tray = null;
 let quitting = false;
-let discordStProc = null;
-let discordStState = 'stopped';
-let discordStOutput = [];
+const richPresence = new DiscordLyricsPresence((status) => {
+  if (win && !win.isDestroyed()) win.webContents.send('richpresence:status', status);
+});
 
 function readIni(file) {
   const out = {};
@@ -247,6 +245,7 @@ ipcMain.handle('tools:get', () => {
     launchers: (t.launchers || []).map(normLauncher),
     alert: { on: false, ms: 120, via: 'both', ...(t.alert || {}) },
     settings: { autostart: false, startHidden: false, accent: '#6c5ce7', saveSettings: true, ...(t.settings || {}) },
+    richPresence: { clientId: String((t.richPresence || {}).clientId || '') },
     download: {
       mode: t.download && t.download.mode === 'mp3' ? 'mp3' : 'mp4',
       quality: t.download && ['best', '1080', '720', '480'].includes(t.download.quality) ? t.download.quality : 'best',
@@ -326,95 +325,23 @@ function runTarget(target) {
 
 ipcMain.handle('tools:run', (_e, target) => { runTargets(Array.isArray(target) ? target : [target]); return true; });
 
-function discordStStatus() {
-  return {
-    state: discordStState,
-    pid: discordStProc ? discordStProc.pid : null,
-    output: discordStOutput.slice(-8),
-    configured: fs.existsSync(DISCORDST_ENV),
-    available: fs.existsSync(DISCORDST_APP),
-  };
-}
-
-function publishDiscordStStatus() {
-  if (win && !win.isDestroyed()) win.webContents.send('discordst:status', discordStStatus());
-}
-
-function appendDiscordStOutput(chunk) {
-  const lines = String(chunk || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-  if (!lines.length) return;
-  discordStOutput.push(...lines);
-  discordStOutput = discordStOutput.slice(-8);
-  publishDiscordStStatus();
-}
-
-ipcMain.handle('discordst:status', () => discordStStatus());
-
-ipcMain.handle('discordst:start', () => {
-  if (discordStProc) return { ok: false, error: 'DiscordSt sudah berjalan.', status: discordStStatus() };
-  if (!fs.existsSync(DISCORDST_APP)) return { ok: false, error: 'app.js DiscordSt tidak ditemukan.', status: discordStStatus() };
-  if (!fs.existsSync(DISCORDST_ENV)) return { ok: false, error: 'File .env DiscordSt belum tersedia.', status: discordStStatus() };
-
-  discordStOutput = [];
-  discordStState = 'starting';
-  publishDiscordStStatus();
-  try {
-    const child = spawn('node', [DISCORDST_APP], {
-      cwd: DISCORDST_DIR,
-      windowsHide: true,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    discordStProc = child;
-    child.stdout.on('data', appendDiscordStOutput);
-    child.stderr.on('data', appendDiscordStOutput);
-    child.once('spawn', () => {
-      discordStState = 'running';
-      appendDiscordStOutput('DiscordSt berjalan.');
-    });
-    child.on('error', (error) => {
-      discordStState = 'error';
-      appendDiscordStOutput('Gagal menjalankan DiscordSt: ' + error.message);
-      discordStProc = null;
-      publishDiscordStStatus();
-    });
-    child.on('close', (code, signal) => {
-      discordStProc = null;
-      discordStState = code === 0 || discordStState === 'stopping' ? 'stopped' : 'error';
-      appendDiscordStOutput(`DiscordSt berhenti (${signal || 'exit ' + code}).`);
-      publishDiscordStStatus();
-    });
-  } catch (error) {
-    discordStProc = null;
-    discordStState = 'error';
-    appendDiscordStOutput('Gagal menjalankan DiscordSt: ' + error.message);
-    publishDiscordStStatus();
-    return { ok: false, error: error.message, status: discordStStatus() };
+ipcMain.handle('richpresence:status', () => richPresence.status());
+ipcMain.handle('richpresence:save', (_e, clientId) => {
+  const value = String(clientId || '').trim();
+  if (value && !/^\d{17,20}$/.test(value)) {
+    return { ok: false, error: 'Application ID harus berupa angka 17–20 digit.' };
   }
-  return { ok: true, status: discordStStatus() };
+  const t = readTools();
+  t.richPresence = { clientId: value };
+  writeTools(t);
+  return { ok: true, clientId: value };
 });
-
-function stopDiscordSt() {
-  const child = discordStProc;
-  if (!child) {
-    discordStState = 'stopped';
-    publishDiscordStStatus();
-    return { ok: true, status: discordStStatus() };
-  }
-  discordStState = 'stopping';
-  publishDiscordStStatus();
-  if (process.platform === 'win32' && child.pid) {
-    execFile('taskkill', ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true }, (error) => {
-      if (error && discordStProc === child) {
-        try { child.kill(); } catch {}
-      }
-    });
-  } else {
-    try { child.kill('SIGTERM'); } catch {}
-  }
-  return { ok: true, status: discordStStatus() };
-}
-
-ipcMain.handle('discordst:stop', stopDiscordSt);
+ipcMain.handle('richpresence:start', async () => richPresence.start((readTools().richPresence || {}).clientId));
+ipcMain.handle('richpresence:stop', () => richPresence.stop());
+ipcMain.handle('richpresence:portal', () => {
+  shell.openExternal('https://discord.com/developers/applications');
+  return true;
+});
 
 // daftar aplikasi: Get-StartApps ikut memuat app Store/UWP, .lnk sebagai cadangan
 let appCache = null;
@@ -1158,6 +1085,93 @@ function startGpu() {
 
 ipcMain.handle('sys:stats', () => sysStats());
 
+let updateBusy = false;
+
+function runGit(args, timeout = 60000) {
+  return new Promise((resolve) => {
+    execFile('git', args, { cwd: ROOT, windowsHide: true, timeout, maxBuffer: 8 * 1024 * 1024 }, (error, stdout, stderr) => {
+      resolve({ error, stdout: String(stdout || '').trim(), stderr: String(stderr || '').trim() });
+    });
+  });
+}
+
+ipcMain.handle('app:update', async () => {
+  if (updateBusy) return { ok: false, error: 'Pemeriksaan update sedang berjalan.' };
+  if (!fs.existsSync(path.join(ROOT, '.git'))) {
+    return { ok: false, error: 'Update otomatis hanya tersedia jika app dijalankan dari folder repository Git.' };
+  }
+  updateBusy = true;
+  try {
+    const branchResult = await runGit(['rev-parse', '--abbrev-ref', 'HEAD']);
+    if (branchResult.error || !branchResult.stdout || branchResult.stdout === 'HEAD') {
+      return { ok: false, error: 'Branch Git aktif tidak dapat diketahui.' };
+    }
+    const branch = branchResult.stdout;
+    const fetch = await runGit(['fetch', '--prune', 'origin', branch], 120000);
+    if (fetch.error) return { ok: false, error: fetch.stderr || fetch.error.message };
+
+    const remoteRef = 'origin/' + branch;
+    const [localHead, remoteHead] = await Promise.all([
+      runGit(['rev-parse', 'HEAD']),
+      runGit(['rev-parse', remoteRef]),
+    ]);
+    if (localHead.error || remoteHead.error) {
+      return { ok: false, error: remoteHead.stderr || localHead.stderr || 'Versi repository tidak dapat dibaca.' };
+    }
+    if (localHead.stdout === remoteHead.stdout) return { ok: true, updated: false, message: 'Aplikasi sudah versi terbaru.' };
+
+    const ancestor = await runGit(['merge-base', '--is-ancestor', 'HEAD', remoteRef]);
+    if (ancestor.error) {
+      return { ok: false, error: 'Update tidak bisa dipasang otomatis karena branch lokal berbeda dari GitHub.' };
+    }
+    const [changedResult, statusResult] = await Promise.all([
+      runGit(['diff', '--name-only', '--no-renames', 'HEAD', remoteRef]),
+      runGit(['status', '--porcelain=v1']),
+    ]);
+    if (changedResult.error || statusResult.error) {
+      return { ok: false, error: changedResult.stderr || statusResult.stderr || 'Perubahan lokal tidak dapat diperiksa.' };
+    }
+    const changedFiles = changedResult.stdout.split(/\r?\n/).filter(Boolean);
+    const dirtyFiles = new Set();
+    for (const line of statusResult.stdout.split(/\r?\n/).filter(Boolean)) {
+      const file = line.slice(3).trim();
+      for (const part of file.split(' -> ')) dirtyFiles.add(part);
+    }
+    const conflicts = changedFiles.filter((file) => dirtyFiles.has(file));
+    if (conflicts.length) {
+      return {
+        ok: false,
+        error: 'Update dibatalkan agar perubahan lokal tidak tertimpa: ' + conflicts.join(', '),
+      };
+    }
+
+    const merged = await runGit(['merge', '--ff-only', remoteRef], 120000);
+    if (merged.error) return { ok: false, error: merged.stderr || merged.error.message };
+
+    if (changedFiles.some((file) => file === 'package.json' || file === 'package-lock.json')) {
+      const install = await new Promise((resolve) => {
+        execFile(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', 'npm install --no-audit --no-fund'], {
+          cwd: ROOT,
+          windowsHide: true,
+          timeout: 300000,
+          maxBuffer: 8 * 1024 * 1024,
+        }, (error, stdout, stderr) => resolve({ error, stdout: String(stdout || ''), stderr: String(stderr || '') }));
+      });
+      if (install.error) {
+        return { ok: false, updated: true, error: 'Source sudah diperbarui, tetapi dependency gagal dipasang: ' + (install.stderr || install.error.message) };
+      }
+    }
+
+    setTimeout(() => {
+      app.relaunch();
+      app.quit();
+    }, 1200);
+    return { ok: true, updated: true, message: 'Update berhasil dipasang. Aplikasi akan terbuka kembali otomatis.' };
+  } finally {
+    updateBusy = false;
+  }
+});
+
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
@@ -1195,7 +1209,7 @@ if (!app.requestSingleInstanceLock()) {
 
   app.on('before-quit', () => { quitting = true; });
   app.on('will-quit', () => {
-    stopDiscordSt();
+    richPresence.stop();
     if (engine) { try { engine.kill(); } catch {} }
     if (gpuProc) { try { gpuProc.kill(); } catch {} }
     liveStop();

@@ -676,25 +676,33 @@
     </section>
 
     <section class="view" id="v-discordst">
-      <h1>Discord Lyrics</h1>
+      <h1>Discord Rich Presence</h1>
       <div class="card">
-        <div class="mon-head">Spotify Lyrics → Discord Status</div>
+        <div class="mon-head">Spotify Lyrics → Discord Activity</div>
         <div class="row">
-          <span class="lbl2">Status proses</span>
+          <label class="lbl2" for="richpresence-client-id">Application ID</label>
+          <input class="txt" id="richpresence-client-id" inputmode="numeric" autocomplete="off" placeholder="ID angka aplikasi Discord" style="flex:1">
+          <button class="ghost" id="richpresence-save">Simpan ID</button>
+          <button class="ghost" id="richpresence-portal">Developer Portal</button>
+        </div>
+        <div class="meta" style="margin:0">Buat aplikasi di Developer Portal, lalu salin Application ID. Hanya ID publik ini yang disimpan lokal, bukan token akun.</div>
+        <div class="row">
+          <span class="lbl2">Koneksi</span>
           <b id="discordst-state">Berhenti</b>
           <span class="meta" id="discordst-pid" style="margin:0;margin-left:auto"></span>
         </div>
         <div class="meta" id="discordst-config" style="margin:0"></div>
         <div class="row">
-          <button class="run small" id="discordst-run">Mulai</button>
+          <button class="run small" id="discordst-run" disabled>Sambungkan</button>
           <button class="ghost" id="discordst-stop" disabled>Stop</button>
         </div>
-        <div class="meta" id="discordst-dir" style="margin:0"></div>
+        <div class="meta" id="discordst-dir" style="margin:0">Belum ada lagu Spotify terdeteksi.</div>
       </div>
       <div class="card" style="min-height:0;flex:1">
-        <div class="mon-head">Log terbaru</div>
+        <div class="mon-head">Koneksi dan lirik</div>
         <div class="ds-log" id="discordst-log">Belum ada log proses.</div>
       </div>
+      <p class="foot">Discord Desktop harus terbuka. Lagu dan satu baris lirik tampil sebagai aktivitas Rich Presence, bukan custom status.</p>
     </section>
 
     <section class="view" id="v-overlay">
@@ -741,6 +749,13 @@
 
     <section class="view" id="v-settings">
       <h1>Pengaturan</h1>
+      <div class="card">
+        <div class="row">
+          <div class="lname"><b>Pembaruan aplikasi</b><em>Cek versi GitHub dan pasang update yang tersedia.</em></div>
+          <button class="ghost" id="app-update-check">Cek update</button>
+        </div>
+        <div class="meta" id="app-update-status" style="margin:0">Update yang berhasil akan membuka ulang aplikasi otomatis.</div>
+      </div>
       <div class="card">
         <div class="mon-head">Penyimpanan lokal</div>
         <div class="row">
@@ -1643,6 +1658,26 @@ function saveSettings() {
   window.api.toolsSave({ settings });
 }
 
+document.getElementById('app-update-check').addEventListener('click', async (event) => {
+  const button = event.currentTarget;
+  const status = document.getElementById('app-update-status');
+  button.disabled = true;
+  button.textContent = 'Memeriksa…';
+  status.textContent = 'Memeriksa update GitHub…';
+  try {
+    const result = await window.api.appUpdate();
+    status.textContent = result.message || result.error || 'Pemeriksaan update selesai.';
+    if (result.updated && result.ok) {
+      button.textContent = 'Memasang…';
+      return;
+    }
+  } catch (error) {
+    status.textContent = 'Gagal memeriksa update: ' + error.message;
+  }
+  button.disabled = false;
+  button.textContent = 'Cek update';
+});
+
 document.getElementById('set-auto').addEventListener('change', (e) => {
   settings.autostart = e.target.checked;
   saveSettings();
@@ -2007,22 +2042,22 @@ document.getElementById('sb-target-output').addEventListener('change', async (ev
 
 window.api.onSoundboardPlay(playSound);
 
-// ---------- Discord lyrics status process ----------
-const discordSt = { state: 'stopped', pid: null, output: [], configured: false, available: false };
+// ---------- Discord Rich Presence ----------
+const discordSt = { state: 'stopped', message: 'Berhenti', track: '', output: [] };
+const richPresenceId = document.getElementById('richpresence-client-id');
 
 function paintDiscordSt(state) {
   Object.assign(discordSt, state || {});
-  const labels = { stopped: 'Berhenti', starting: 'Memulai…', running: 'Berjalan', stopping: 'Menghentikan…', error: 'Error' };
-  document.getElementById('discordst-state').textContent = labels[discordSt.state] || 'Berhenti';
-  document.getElementById('discordst-pid').textContent = discordSt.pid ? 'PID ' + discordSt.pid : '';
-  const issues = [];
-  if (!discordSt.available) issues.push('app.js tidak ditemukan di folder DiscordSt.');
-  if (!discordSt.configured) issues.push('File .env belum tersedia. Isi DISCORD_TOKEN di folder DiscordSt.');
-  document.getElementById('discordst-config').textContent = issues.join(' ')
-    || 'Token Discord tersedia secara lokal; nilainya tidak ditampilkan di sini.';
-  document.getElementById('discordst-run').disabled = !discordSt.available || !discordSt.configured
-    || ['starting', 'running', 'stopping'].includes(discordSt.state);
-  document.getElementById('discordst-stop').disabled = !['starting', 'running', 'stopping'].includes(discordSt.state);
+  const labels = { stopped: 'Berhenti', starting: 'Menyambungkan…', running: 'Terhubung', error: 'Error' };
+  document.getElementById('discordst-state').textContent = labels[discordSt.state] || discordSt.state;
+  document.getElementById('discordst-pid').textContent = discordSt.message || '';
+  document.getElementById('discordst-config').textContent = 'Kredensial akun tidak digunakan. Aplikasi hanya memakai Discord IPC lokal.';
+  document.getElementById('discordst-run').disabled = !/^\d{17,20}$/.test(richPresenceId.value.trim())
+    || ['starting', 'running'].includes(discordSt.state);
+  document.getElementById('discordst-stop').disabled = !['starting', 'running'].includes(discordSt.state);
+  document.getElementById('discordst-dir').textContent = discordSt.track
+    ? 'Spotify: ' + discordSt.track
+    : 'Belum ada lagu Spotify terdeteksi.';
   document.getElementById('discordst-log').textContent = discordSt.output.length
     ? discordSt.output.join('\n')
     : 'Belum ada log proses.';
@@ -2030,21 +2065,33 @@ function paintDiscordSt(state) {
   log.scrollTop = log.scrollHeight;
 }
 
-window.api.onDiscordStStatus(paintDiscordSt);
+window.api.onRichPresenceStatus(paintDiscordSt);
 
-document.getElementById('discordst-run').addEventListener('click', async (event) => {
-  const button = event.currentTarget;
-  button.disabled = true;
-  const result = await window.api.discordStStart();
+document.getElementById('richpresence-save').addEventListener('click', async () => {
+  const result = await window.api.richPresenceSave(richPresenceId.value);
+  document.getElementById('discordst-pid').textContent = result.ok ? 'Application ID disimpan lokal.' : result.error;
+  paintDiscordSt({ ...discordSt, message: document.getElementById('discordst-pid').textContent });
+});
+
+document.getElementById('richpresence-portal').addEventListener('click', () => window.api.richPresencePortal());
+
+richPresenceId.addEventListener('input', () => paintDiscordSt(discordSt));
+
+document.getElementById('discordst-run').addEventListener('click', async () => {
+  const saved = await window.api.richPresenceSave(richPresenceId.value);
+  if (!saved.ok) {
+    paintDiscordSt({ ...discordSt, state: 'error', message: saved.error, output: [...discordSt.output, saved.error] });
+    return;
+  }
+  const result = await window.api.richPresenceStart();
   if (result.status) paintDiscordSt(result.status);
   if (!result.ok) {
-    const output = [...discordSt.output, result.error];
-    paintDiscordSt({ ...discordSt, state: 'error', output });
+    paintDiscordSt({ ...discordSt, state: 'error', message: result.error, output: [...discordSt.output, result.error] });
   }
 });
 
 document.getElementById('discordst-stop').addEventListener('click', async () => {
-  const result = await window.api.discordStStop();
+  const result = await window.api.richPresenceStop();
   if (result.status) paintDiscordSt(result.status);
 });
 
@@ -2054,8 +2101,8 @@ document.getElementById('discordst-stop').addEventListener('click', async () => 
   status = r.status;
   presets = await window.api.presets();
   tools = await window.api.tools();
-  document.getElementById('discordst-dir').textContent = 'Folder: D:\\ME\\KULIAH\\vscode\\DiscordSt · node app.js';
-  paintDiscordSt(await window.api.discordStStatus());
+  richPresenceId.value = (tools.richPresence || {}).clientId || '';
+  paintDiscordSt(await window.api.richPresenceStatus());
   const download = tools.download || {};
   dl.mode = download.mode === 'mp3' ? 'mp3' : 'mp4';
   dl.quality = ['best', '1080', '720', '480'].includes(download.quality) ? download.quality : 'best';
