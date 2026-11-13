@@ -51,6 +51,10 @@
   .dc-value { font-size: 22px; font-weight: 700; background: linear-gradient(135deg, var(--text), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
   .dc-meta { font-size: 11.5px; color: var(--dim); min-height: 16px; }
   .dash .ghost { align-self: flex-start; margin-top: 6px; }
+  .status-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(125px, 1fr)); gap: 8px; }
+  .status-item { min-width: 0; display: flex; flex-direction: column; gap: 5px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; background: linear-gradient(135deg, var(--panel), var(--panel2)); }
+  .status-item span { color: var(--dim); font-size: 10px; text-transform: uppercase; }
+  .status-item b { overflow: hidden; color: var(--text); font-size: 11.5px; font-weight: 550; text-overflow: ellipsis; white-space: nowrap; }
 
   .hero {
     border-radius: 14px; border: 1px solid rgba(139,92,246,0.25); padding: 18px 20px;
@@ -406,6 +410,12 @@
           <button class="ghost" data-go="system">Buka System</button>
         </div>
       </div>
+      <div class="status-strip">
+        <div class="status-item"><span>Cleaner</span><b id="dash-clean">Belum dipindai</b></div>
+        <div class="status-item"><span>Download</span><b id="dash-download">Belum diperiksa</b></div>
+        <div class="status-item"><span>Soundboard</span><b id="dash-soundboard">0 suara</b></div>
+        <div class="status-item"><span>Discord Activity</span><b id="dash-discord">Terputus</b></div>
+      </div>
     </section>
 
     <section class="view" id="v-macro">
@@ -596,6 +606,7 @@
 
       <div class="row">
         <input id="dl-url" class="txt" placeholder="Tempel link YouTube, TikTok, X, Instagram, atau file langsung…" spellcheck="false" style="flex:1">
+        <button id="dl-paste" class="ghost">Tempel</button>
         <button id="dl-go" class="ghost">Analisa</button>
       </div>
 
@@ -929,7 +940,7 @@ function render() {
     <div class="card ${m.enabled ? '' : 'off'}" data-card="${i}">
       <div class="ch">
         <button class="chip ${capture && capture.kind === 'trigger' && capture.i === i ? 'cap' : ''}"
-                data-act="cap-trigger" data-i="${i}">${capText('trigger', i, m.trigger)}</button>
+          data-act="cap-trigger" data-i="${i}">${esc(capText('trigger', i, m.trigger))}</button>
         <span class="tag">pemicu</span>
         <label class="sw"><input type="checkbox" data-act="enabled" data-i="${i}" ${m.enabled ? 'checked' : ''}><i></i></label>
       </div>
@@ -949,7 +960,7 @@ function render() {
             <option value="middle" ${m.value === 'middle' ? 'selected' : ''}>Klik tengah</option>
           </select>` : `
           <button class="chip ${capture && capture.kind === 'value' && capture.i === i ? 'cap' : ''}"
-                  data-act="cap-value" data-i="${i}">${capText('value', i, m.value)}</button>`}
+              data-act="cap-value" data-i="${i}">${esc(capText('value', i, m.value))}</button>`}
       </div>
       <div class="row">
         <span class="lbl">CPS</span>
@@ -1004,7 +1015,7 @@ function paintPresets() {
     const when = info
       ? `${info.n} macro · ${new Date(info.at).toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`
       : 'kosong';
-    return `<span class="slot"><b>Slot ${s}</b><em>${when}</em>
+    return `<span class="slot"><b>Slot ${s}</b><em>${esc(when)}</em>
       <button class="mini" data-act="psave" data-i="${s}">Simpan</button>
       <button class="mini" data-act="pload" data-i="${s}" ${info ? '' : 'disabled'}>Muat</button></span>`;
   }).join('');
@@ -1534,6 +1545,7 @@ document.getElementById('cscan').addEventListener('click', async () => {
   size.textContent = 'Memindai…';
   const r = await window.api.cleanScan();
   size.textContent = `${(r.bytes / 1048576).toFixed(1)} MB · ${r.files} file`;
+  document.getElementById('dash-clean').textContent = `${(r.bytes / 1048576).toFixed(1)} MB · ${r.files} file`;
   document.getElementById('clean-info').innerHTML =
     r.list.map((x) => `${esc(x.path)} — ${(x.bytes / 1048576).toFixed(1)} MB`).join('<br>');
   document.getElementById('crun').disabled = r.bytes <= 0;
@@ -1546,6 +1558,7 @@ document.getElementById('crun').addEventListener('click', async () => {
   document.getElementById('clean-out').textContent = 'Menghapus…';
   const r = await window.api.cleanRun();
   document.getElementById('clean-out').textContent = `${(r.freed / 1048576).toFixed(1)} MB dibebaskan`;
+  document.getElementById('dash-clean').textContent = `Selesai · ${(r.freed / 1048576).toFixed(1)} MB dibebaskan`;
   document.getElementById('clean-size').textContent = 'Belum dipindai';
   document.getElementById('clean-info').textContent = 'Temp Windows + temp user + Recycle Bin.';
 });
@@ -1728,6 +1741,9 @@ async function dlCheck() {
   document.getElementById('dl-dir').textContent = r.dir;
   document.getElementById('dl-dir').title = r.dir;
   document.getElementById('dl-go').disabled = !r.ytdlp;
+  document.getElementById('dash-download').textContent = r.ytdlp
+    ? 'Siap · yt-dlp ' + (r.ytdlp.version || '')
+    : 'yt-dlp belum ada';
   const lines = [];
   if (!r.ytdlp) lines.push('<b>yt-dlp belum ada.</b> Download <code>yt-dlp.exe</code> dari halaman rilis, taruh di folder app ini atau tambahkan ke PATH, lalu klik Cek ulang.');
   if (!r.ffmpeg) lines.push('<b>ffmpeg belum ada.</b> MP3 dan penggabungan video+audio butuh ffmpeg. Download build ffmpeg, taruh <code>ffmpeg.exe</code> di PATH atau folder app, lalu klik Cek ulang.');
@@ -1774,6 +1790,20 @@ async function dlAnalyze() {
 }
 
 document.getElementById('dl-go').addEventListener('click', dlAnalyze);
+document.getElementById('dl-paste').addEventListener('click', async () => {
+  const field = document.getElementById('dl-url');
+  const state = document.getElementById('dl-state');
+  try {
+    const text = (await window.api.readClipboardText()).trim();
+    if (!text) { state.textContent = 'Clipboard kosong.'; return; }
+    field.value = text;
+    field.focus();
+    saveDownloadPrefs();
+    state.textContent = 'Link ditempel dari clipboard.';
+  } catch {
+    state.textContent = 'Tidak dapat membaca clipboard.';
+  }
+});
 document.getElementById('dl-url').addEventListener('keydown', (e) => { if (e.key === 'Enter') dlAnalyze(); });
 document.getElementById('dl-url').addEventListener('change', saveDownloadPrefs);
 
@@ -1884,8 +1914,13 @@ function paintSoundboard() {
   const list = document.getElementById('sb-list');
   if (!sb.sounds.length) {
     list.innerHTML = '<div class="meta">Belum ada suara. Tambahkan file audio untuk mulai.</div>';
+    document.getElementById('dash-soundboard').textContent = '0 suara';
+    document.getElementById('sb-status').textContent = sbcap != null
+      ? 'Pilih kombinasi Ctrl/Alt/Shift + tombol atau F1–F24. Escape membatalkan.'
+      : 'Suara dan pengaturan disimpan lokal di laptop.';
     return;
   }
+  document.getElementById('dash-soundboard').textContent = sb.sounds.length + (sb.sounds.length === 1 ? ' suara' : ' suara');
   list.innerHTML = sb.sounds.map((sound) => {
     const failed = sound.failed || sound.missing;
     return `<div class="lrow">
@@ -1895,7 +1930,8 @@ function paintSoundboard() {
       <button class="mini" data-sb-del="${esc(sound.id)}" title="Hapus suara">Hapus</button>
     </div>`;
   }).join('');
-  if (sb.sounds.some((sound) => sound.failed)) document.getElementById('sb-status').textContent = 'Sebagian keybind bentrok dengan aplikasi lain. Pilih kombinasi berbeda.';
+  if (sbcap != null) document.getElementById('sb-status').textContent = 'Pilih kombinasi Ctrl/Alt/Shift + tombol atau F1–F24. Escape membatalkan.';
+  else if (sb.sounds.some((sound) => sound.failed)) document.getElementById('sb-status').textContent = 'Keybind bentrok atau tidak didukung. Pilih kombinasi berbeda.';
   else if (sb.sounds.some((sound) => sound.missing)) document.getElementById('sb-status').textContent = 'Sebagian file suara tidak ditemukan. Hapus entri atau pilih file lagi.';
   else document.getElementById('sb-status').textContent = 'Suara dan pengaturan disimpan lokal di laptop.';
 }
@@ -1993,8 +2029,11 @@ document.getElementById('sb-list').addEventListener('click', async (event) => {
   if (playButton) { await playSound(playButton.dataset.sbPlay); return; }
   if (deleteButton) {
     const id = deleteButton.dataset.sbDel;
-    const audio = sbAudio.get(id);
-    if (audio) { audio.pause(); sbAudio.delete(id); }
+    const routes = sbAudio.get(id);
+    if (routes) {
+      routes.forEach((audio) => { audio.pause(); audio.src = ''; });
+      sbAudio.delete(id);
+    }
     sb.sounds = sb.sounds.filter((sound) => sound.id !== id);
     await saveSoundboard();
   }
@@ -2007,7 +2046,10 @@ document.addEventListener('keydown', async (event) => {
   if (event.key === 'Escape') { sbcap = null; paintSoundboard(); return; }
   if (['Control', 'Alt', 'Shift', 'Meta'].includes(event.key) || event.repeat) return;
   const isFn = /^F([1-9]|1[0-9]|2[0-4])$/.test(event.key);
-  if (!(event.ctrlKey || event.altKey || event.shiftKey || event.metaKey) && !isFn) return;
+  if (!(event.ctrlKey || event.altKey || event.shiftKey || event.metaKey) && !isFn) {
+    document.getElementById('sb-status').textContent = 'Key tunggal diabaikan agar tidak mengganggu mengetik. Gunakan modifier atau F1–F24.';
+    return;
+  }
   const mods = [];
   if (event.ctrlKey) mods.push('Control');
   if (event.altKey) mods.push('Alt');
@@ -2023,7 +2065,7 @@ document.addEventListener('keydown', async (event) => {
 document.getElementById('sb-volume').addEventListener('input', (event) => {
   sb.volume = Number(event.target.value) / 100;
   document.getElementById('sb-volume-value').textContent = event.target.value + '%';
-  sbAudio.forEach((audio) => { audio.volume = sb.volume; });
+  sbAudio.forEach((routes) => routes.forEach((audio) => { audio.volume = sb.volume; }));
 });
 
 document.getElementById('sb-volume').addEventListener('change', saveSoundboard);
@@ -2049,6 +2091,7 @@ const richPresenceId = document.getElementById('richpresence-client-id');
 function paintDiscordSt(state) {
   Object.assign(discordSt, state || {});
   const labels = { stopped: 'Berhenti', starting: 'Menyambungkan…', running: 'Terhubung', error: 'Error' };
+  document.getElementById('dash-discord').textContent = labels[discordSt.state] || discordSt.state;
   document.getElementById('discordst-state').textContent = labels[discordSt.state] || discordSt.state;
   document.getElementById('discordst-pid').textContent = discordSt.message || '';
   document.getElementById('discordst-config').textContent = 'Kredensial akun tidak digunakan. Aplikasi hanya memakai Discord IPC lokal.';

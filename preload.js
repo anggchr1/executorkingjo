@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld('api', {
   onRichPresenceStatus: (cb) => ipcRenderer.on('richpresence:status', (_e, status) => cb(status)),
   appUpdate: () => ipcRenderer.invoke('app:update'),
   clips: () => ipcRenderer.invoke('clip:list'),
+  readClipboardText: () => ipcRenderer.invoke('clip:readText'),
   clipCopy: (i) => ipcRenderer.invoke('clip:copy', i),
   clipClear: () => ipcRenderer.invoke('clip:clear'),
   cleanScan: () => ipcRenderer.invoke('clean:scan'),

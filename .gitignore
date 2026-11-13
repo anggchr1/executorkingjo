@@ -3,3 +3,13 @@ node_modules/
 .DS_Store
 Thumbs.db
 *.tmp
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.pfx
+credentials.json
+secrets.json
+tools.json
+presets.json

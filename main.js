@@ -12,6 +12,7 @@ const STAT = path.join(ROOT, 'status.ini');
 const SLOTS = path.join(ROOT, 'presets.json');
 const TOOLS = path.join(ROOT, 'tools.json');
 const ENGINE = path.join(ROOT, 'engine.ahk');
+const TRUSTED_UPDATE_REMOTE = 'https://github.com/anggchr1/executorkingjo.git';
 const ICON = path.join(ROOT, 'assets', 'icon.png');
 const AHK = 'C:\\Program Files\\AutoHotkey\\v1.1.37.02\\AutoHotkeyU64.exe';
 
@@ -133,10 +134,15 @@ function createWindow() {
     show: false,
     webPreferences: {
       preload: path.join(ROOT, 'preload.js'),
+      sandbox: true,
       contextIsolation: true,
       nodeIntegration: false,
       spellcheck: false,
     },
+  });
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  win.webContents.on('will-navigate', (event, url) => {
+    if (url !== pathToFileURL(path.join(ROOT, 'index.html')).href) event.preventDefault();
   });
   win.loadFile(path.join(ROOT, 'index.html'));
   win.once('ready-to-show', () => { if (!HIDDEN) win.show(); });
@@ -434,6 +440,7 @@ async function clipPoll() {
   if (clips.length > 50) clips.length = 50;
 }
 ipcMain.handle('clip:list', () => clips);
+ipcMain.handle('clip:readText', async () => String(await clipboard.readText() || '').slice(0, 8192));
 ipcMain.handle('clip:copy', async (_e, i) => {
   if (!clips[i]) return false;
   await clipboard.writeText(clips[i].text);
@@ -860,7 +867,7 @@ function createOverlay() {
     ...hudBounds(),
     frame: false, transparent: true, resizable: false, alwaysOnTop: true,
     skipTaskbar: true, focusable: false, hasShadow: false, show: false,
-    webPreferences: { preload: path.join(ROOT, 'preload.js'), contextIsolation: true, nodeIntegration: false },
+    webPreferences: { preload: path.join(ROOT, 'preload.js'), sandbox: true, contextIsolation: true, nodeIntegration: false },
   });
   overlay.setIgnoreMouseEvents(true);
   overlay.setAlwaysOnTop(true, 'screen-saver');
@@ -1095,6 +1102,14 @@ function runGit(args, timeout = 60000) {
   });
 }
 
+function normalizeGitRemote(remote) {
+  return String(remote || '').trim()
+    .replace(/^git@github\.com:/i, 'https://github.com/')
+    .replace(/\.git$/i, '')
+    .replace(/\/$/, '')
+    .toLowerCase();
+}
+
 ipcMain.handle('app:update', async () => {
   if (updateBusy) return { ok: false, error: 'Pemeriksaan update sedang berjalan.' };
   if (!fs.existsSync(path.join(ROOT, '.git'))) {
@@ -1102,6 +1117,10 @@ ipcMain.handle('app:update', async () => {
   }
   updateBusy = true;
   try {
+    const remote = await runGit(['remote', 'get-url', 'origin']);
+    if (remote.error || normalizeGitRemote(remote.stdout) !== normalizeGitRemote(TRUSTED_UPDATE_REMOTE)) {
+      return { ok: false, error: 'Update dibatalkan karena origin bukan repository Executor Kingjo resmi.' };
+    }
     const branchResult = await runGit(['rev-parse', '--abbrev-ref', 'HEAD']);
     if (branchResult.error || !branchResult.stdout || branchResult.stdout === 'HEAD') {
       return { ok: false, error: 'Branch Git aktif tidak dapat diketahui.' };
