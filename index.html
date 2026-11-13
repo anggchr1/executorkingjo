@@ -140,6 +140,7 @@
   .sb-settings { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, 1fr); gap: 14px; align-items: center; }
   .sb-volume { display: flex; align-items: center; gap: 10px; }
   .sb-volume input { flex: 1; min-width: 80px; accent-color: var(--accent); }
+  .ds-log { min-height: 120px; max-height: 260px; overflow: auto; padding: 10px 12px; border: 1px solid var(--line); border-radius: 7px; background: #0c0f14; color: #b7c1d1; font: 11px/1.5 ui-monospace, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
   .acc-row { display: flex; gap: 9px; }
   .acc {
     width: 26px; height: 26px; border-radius: 50%; cursor: pointer; padding: 0;
@@ -365,6 +366,7 @@
     <div class="nav" data-view="cleaner">Cleaner</div>
     <div class="nav" data-view="download">Download</div>
     <div class="nav" data-view="soundboard">Soundboard</div>
+    <div class="nav" data-view="discordst">Discord Lyrics</div>
     <div class="nav" data-view="overlay">Overlay</div>
     <div class="sp"></div>
     <div class="nav" data-view="settings">Pengaturan</div>
@@ -671,6 +673,28 @@
         <div class="sb-list" id="sb-list"></div>
       </div>
       <p class="foot">Input seperti Publik atau Dual mix ditampilkan sebagai perangkat rekaman. Untuk mengirim suara, pilih playback virtual yang terhubung ke mix tersebut. Keybind global memakai Ctrl, Alt, Shift, atau tombol F1–F24.</p>
+    </section>
+
+    <section class="view" id="v-discordst">
+      <h1>Discord Lyrics</h1>
+      <div class="card">
+        <div class="mon-head">Spotify Lyrics → Discord Status</div>
+        <div class="row">
+          <span class="lbl2">Status proses</span>
+          <b id="discordst-state">Berhenti</b>
+          <span class="meta" id="discordst-pid" style="margin:0;margin-left:auto"></span>
+        </div>
+        <div class="meta" id="discordst-config" style="margin:0"></div>
+        <div class="row">
+          <button class="run small" id="discordst-run">Mulai</button>
+          <button class="ghost" id="discordst-stop" disabled>Stop</button>
+        </div>
+        <div class="meta" id="discordst-dir" style="margin:0"></div>
+      </div>
+      <div class="card" style="min-height:0;flex:1">
+        <div class="mon-head">Log terbaru</div>
+        <div class="ds-log" id="discordst-log">Belum ada log proses.</div>
+      </div>
     </section>
 
     <section class="view" id="v-overlay">
@@ -1983,12 +2007,55 @@ document.getElementById('sb-target-output').addEventListener('change', async (ev
 
 window.api.onSoundboardPlay(playSound);
 
+// ---------- Discord lyrics status process ----------
+const discordSt = { state: 'stopped', pid: null, output: [], configured: false, available: false };
+
+function paintDiscordSt(state) {
+  Object.assign(discordSt, state || {});
+  const labels = { stopped: 'Berhenti', starting: 'Memulai…', running: 'Berjalan', stopping: 'Menghentikan…', error: 'Error' };
+  document.getElementById('discordst-state').textContent = labels[discordSt.state] || 'Berhenti';
+  document.getElementById('discordst-pid').textContent = discordSt.pid ? 'PID ' + discordSt.pid : '';
+  const issues = [];
+  if (!discordSt.available) issues.push('app.js tidak ditemukan di folder DiscordSt.');
+  if (!discordSt.configured) issues.push('File .env belum tersedia. Isi DISCORD_TOKEN di folder DiscordSt.');
+  document.getElementById('discordst-config').textContent = issues.join(' ')
+    || 'Token Discord tersedia secara lokal; nilainya tidak ditampilkan di sini.';
+  document.getElementById('discordst-run').disabled = !discordSt.available || !discordSt.configured
+    || ['starting', 'running', 'stopping'].includes(discordSt.state);
+  document.getElementById('discordst-stop').disabled = !['starting', 'running', 'stopping'].includes(discordSt.state);
+  document.getElementById('discordst-log').textContent = discordSt.output.length
+    ? discordSt.output.join('\n')
+    : 'Belum ada log proses.';
+  const log = document.getElementById('discordst-log');
+  log.scrollTop = log.scrollHeight;
+}
+
+window.api.onDiscordStStatus(paintDiscordSt);
+
+document.getElementById('discordst-run').addEventListener('click', async (event) => {
+  const button = event.currentTarget;
+  button.disabled = true;
+  const result = await window.api.discordStStart();
+  if (result.status) paintDiscordSt(result.status);
+  if (!result.ok) {
+    const output = [...discordSt.output, result.error];
+    paintDiscordSt({ ...discordSt, state: 'error', output });
+  }
+});
+
+document.getElementById('discordst-stop').addEventListener('click', async () => {
+  const result = await window.api.discordStStop();
+  if (result.status) paintDiscordSt(result.status);
+});
+
 (async () => {
   const r = await window.api.load();
   cfg = r.cfg;
   status = r.status;
   presets = await window.api.presets();
   tools = await window.api.tools();
+  document.getElementById('discordst-dir').textContent = 'Folder: D:\\ME\\KULIAH\\vscode\\DiscordSt · node app.js';
+  paintDiscordSt(await window.api.discordStStatus());
   const download = tools.download || {};
   dl.mode = download.mode === 'mp3' ? 'mp3' : 'mp4';
   dl.quality = ['best', '1080', '720', '480'].includes(download.quality) ? download.quality : 'best';

@@ -11,6 +11,9 @@ const STAT = path.join(ROOT, 'status.ini');
 const SLOTS = path.join(ROOT, 'presets.json');
 const TOOLS = path.join(ROOT, 'tools.json');
 const ENGINE = path.join(ROOT, 'engine.ahk');
+const DISCORDST_DIR = 'D:\\ME\\KULIAH\\vscode\\DiscordSt';
+const DISCORDST_APP = path.join(DISCORDST_DIR, 'app.js');
+const DISCORDST_ENV = path.join(DISCORDST_DIR, '.env');
 const ICON = path.join(ROOT, 'assets', 'icon.png');
 const AHK = 'C:\\Program Files\\AutoHotkey\\v1.1.37.02\\AutoHotkeyU64.exe';
 
@@ -18,6 +21,9 @@ let engine = null;
 let win = null;
 let tray = null;
 let quitting = false;
+let discordStProc = null;
+let discordStState = 'stopped';
+let discordStOutput = [];
 
 function readIni(file) {
   const out = {};
@@ -319,6 +325,96 @@ function runTarget(target) {
 }
 
 ipcMain.handle('tools:run', (_e, target) => { runTargets(Array.isArray(target) ? target : [target]); return true; });
+
+function discordStStatus() {
+  return {
+    state: discordStState,
+    pid: discordStProc ? discordStProc.pid : null,
+    output: discordStOutput.slice(-8),
+    configured: fs.existsSync(DISCORDST_ENV),
+    available: fs.existsSync(DISCORDST_APP),
+  };
+}
+
+function publishDiscordStStatus() {
+  if (win && !win.isDestroyed()) win.webContents.send('discordst:status', discordStStatus());
+}
+
+function appendDiscordStOutput(chunk) {
+  const lines = String(chunk || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  if (!lines.length) return;
+  discordStOutput.push(...lines);
+  discordStOutput = discordStOutput.slice(-8);
+  publishDiscordStStatus();
+}
+
+ipcMain.handle('discordst:status', () => discordStStatus());
+
+ipcMain.handle('discordst:start', () => {
+  if (discordStProc) return { ok: false, error: 'DiscordSt sudah berjalan.', status: discordStStatus() };
+  if (!fs.existsSync(DISCORDST_APP)) return { ok: false, error: 'app.js DiscordSt tidak ditemukan.', status: discordStStatus() };
+  if (!fs.existsSync(DISCORDST_ENV)) return { ok: false, error: 'File .env DiscordSt belum tersedia.', status: discordStStatus() };
+
+  discordStOutput = [];
+  discordStState = 'starting';
+  publishDiscordStStatus();
+  try {
+    const child = spawn('node', [DISCORDST_APP], {
+      cwd: DISCORDST_DIR,
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    discordStProc = child;
+    child.stdout.on('data', appendDiscordStOutput);
+    child.stderr.on('data', appendDiscordStOutput);
+    child.once('spawn', () => {
+      discordStState = 'running';
+      appendDiscordStOutput('DiscordSt berjalan.');
+    });
+    child.on('error', (error) => {
+      discordStState = 'error';
+      appendDiscordStOutput('Gagal menjalankan DiscordSt: ' + error.message);
+      discordStProc = null;
+      publishDiscordStStatus();
+    });
+    child.on('close', (code, signal) => {
+      discordStProc = null;
+      discordStState = code === 0 || discordStState === 'stopping' ? 'stopped' : 'error';
+      appendDiscordStOutput(`DiscordSt berhenti (${signal || 'exit ' + code}).`);
+      publishDiscordStStatus();
+    });
+  } catch (error) {
+    discordStProc = null;
+    discordStState = 'error';
+    appendDiscordStOutput('Gagal menjalankan DiscordSt: ' + error.message);
+    publishDiscordStStatus();
+    return { ok: false, error: error.message, status: discordStStatus() };
+  }
+  return { ok: true, status: discordStStatus() };
+});
+
+function stopDiscordSt() {
+  const child = discordStProc;
+  if (!child) {
+    discordStState = 'stopped';
+    publishDiscordStStatus();
+    return { ok: true, status: discordStStatus() };
+  }
+  discordStState = 'stopping';
+  publishDiscordStStatus();
+  if (process.platform === 'win32' && child.pid) {
+    execFile('taskkill', ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true }, (error) => {
+      if (error && discordStProc === child) {
+        try { child.kill(); } catch {}
+      }
+    });
+  } else {
+    try { child.kill('SIGTERM'); } catch {}
+  }
+  return { ok: true, status: discordStStatus() };
+}
+
+ipcMain.handle('discordst:stop', stopDiscordSt);
 
 // daftar aplikasi: Get-StartApps ikut memuat app Store/UWP, .lnk sebagai cadangan
 let appCache = null;
@@ -1099,6 +1195,7 @@ if (!app.requestSingleInstanceLock()) {
 
   app.on('before-quit', () => { quitting = true; });
   app.on('will-quit', () => {
+    stopDiscordSt();
     if (engine) { try { engine.kill(); } catch {} }
     if (gpuProc) { try { gpuProc.kill(); } catch {} }
     liveStop();
