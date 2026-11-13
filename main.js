@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const { spawn, execFile } = require('child_process');
+const { pathToFileURL } = require('url');
 
 const ROOT = __dirname;
 const CFG = path.join(ROOT, 'config.ini');
@@ -230,14 +231,35 @@ function applyLoginItem(s) {
   } catch {}
 }
 
+let soundboardFailed = [];
+
 ipcMain.handle('tools:get', () => {
   const t = readTools();
+  const failed = registerLaunchers();
+  const soundboard = t.soundboard || {};
   return {
     launchers: (t.launchers || []).map(normLauncher),
     alert: { on: false, ms: 120, via: 'both', ...(t.alert || {}) },
-    settings: { autostart: false, startHidden: false, accent: '#6c5ce7', ...(t.settings || {}) },
+    settings: { autostart: false, startHidden: false, accent: '#6c5ce7', saveSettings: true, ...(t.settings || {}) },
+    download: {
+      mode: t.download && t.download.mode === 'mp3' ? 'mp3' : 'mp4',
+      quality: t.download && ['best', '1080', '720', '480'].includes(t.download.quality) ? t.download.quality : 'best',
+      url: t.download && typeof t.download.url === 'string' ? t.download.url : '',
+    },
+    soundboard: {
+      volume: Number.isFinite(Number(soundboard.volume)) ? Number(soundboard.volume) : 0.8,
+      personalOutputId: soundboard.personalOutputId || soundboard.outputId || '',
+      targetOutputId: soundboard.targetOutputId || '',
+      sounds: (soundboard.sounds || []).filter((s) => s && s.path).map((s) => ({
+        ...s,
+        src: fs.existsSync(s.path) ? pathToFileURL(s.path).href : '',
+        missing: !fs.existsSync(s.path),
+        failed: soundboardFailed.includes(s.id),
+      })),
+    },
     overlay: t.overlay === true,
-    failed: registerLaunchers(),
+    failed,
+    soundboardFailed,
   };
 });
 
@@ -246,7 +268,33 @@ ipcMain.handle('tools:save', (_e, patch) => {
   Object.assign(t, patch);
   writeTools(t);
   if (patch && patch.settings) applyLoginItem(t.settings);
-  return { failed: registerLaunchers() };
+  const failed = registerLaunchers();
+  return { failed, soundboardFailed };
+});
+
+ipcMain.handle('soundboard:pick', async () => {
+  const result = await dialog.showOpenDialog(win, {
+    title: 'Pilih file suara',
+    properties: ['openFile', 'multiSelections'],
+    filters: [{ name: 'Audio', extensions: ['mp3', 'wav', 'ogg', 'oga', 'opus', 'm4a', 'aac', 'flac', 'wma'] }],
+  });
+  if (result.canceled) return [];
+  const soundDir = path.join(app.getPath('userData'), 'soundboard');
+  fs.mkdirSync(soundDir, { recursive: true });
+  return result.filePaths.map((file) => {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    const localPath = path.join(soundDir, id + path.extname(file).toLowerCase());
+    fs.copyFileSync(file, localPath);
+    return {
+      id,
+      path: localPath,
+      name: path.basename(file, path.extname(file)),
+      src: pathToFileURL(localPath).href,
+      key: '',
+      missing: false,
+      enabled: true,
+    };
+  });
 });
 
 ipcMain.handle('tools:pick', async () => {
@@ -326,6 +374,7 @@ ipcMain.handle('tools:apps', async () => (appCache = appCache || await startMenu
 
 function registerLaunchers() {
   const failed = [];
+  soundboardFailed = [];
   if (!app.isReady()) return failed;
   try { globalShortcut.unregisterAll(); } catch {}
   (readTools().launchers || []).forEach((l, i) => {
@@ -333,6 +382,15 @@ function registerLaunchers() {
     try {
       if (!globalShortcut.register(l.key, () => { runTargets(launcherTargets(l)); })) failed.push(i);
     } catch { failed.push(i); }
+  });
+  const sounds = (readTools().soundboard || {}).sounds || [];
+  sounds.forEach((sound) => {
+    if (!sound.key || sound.enabled === false || !sound.path || !fs.existsSync(sound.path)) return;
+    try {
+      if (!globalShortcut.register(sound.key, () => {
+        if (win && !win.isDestroyed()) win.webContents.send('soundboard:play', sound.id);
+      })) soundboardFailed.push(sound.id);
+    } catch { soundboardFailed.push(sound.id); }
   });
   return failed;
 }
@@ -465,6 +523,32 @@ ipcMain.handle('dl:check', async () => {
   return { ...t, dir: dlDir() };
 });
 
+ipcMain.handle('dl:update', async () => {
+  const t = await checkTools();
+  if (!t.ytdlp) return { ok: false, error: 'yt-dlp belum terpasang' };
+  const resolvedPath = path.isAbsolute(t.ytdlp.path) ? t.ytdlp.path : await new Promise((resolve) => {
+    execFile('where.exe', [t.ytdlp.path], { windowsHide: true }, (_error, stdout) => {
+      resolve(String(stdout || '').split(/\r?\n/).map((line) => line.trim()).find(Boolean) || t.ytdlp.path);
+    });
+  });
+  const pythonInstall = /[\\/]Scripts[\\/]yt-dlp(?:\.exe)?$/i.test(resolvedPath);
+  const python = pythonInstall ? path.resolve(path.dirname(resolvedPath), '..', 'python.exe') : '';
+  const updateCommand = pythonInstall && fs.existsSync(python) ? python : resolvedPath;
+  const updateArgs = pythonInstall && fs.existsSync(python)
+    ? ['-m', 'pip', 'install', '--upgrade', '--pre', 'yt-dlp']
+    : ['--update-to', 'nightly'];
+  const result = await new Promise((resolve) => {
+    execFile(updateCommand, updateArgs, { windowsHide: true, timeout: 120000 }, (error, stdout, stderr) => {
+      resolve({ error, stdout: String(stdout || ''), stderr: String(stderr || '') });
+    });
+  });
+  dlTools = null;
+  const updated = await checkTools();
+  const output = (result.stdout + '\n' + result.stderr).trim();
+  if (result.error) return { ok: false, error: output || result.error.message, tools: updated };
+  return { ok: true, message: output || 'Pemeriksaan update selesai.', tools: updated };
+});
+
 ipcMain.handle('dl:site', (_e, which) => {
   const urls = {
     ytdlp: 'https://github.com/yt-dlp/yt-dlp/releases/latest',
@@ -492,13 +576,13 @@ ipcMain.handle('dl:analyze', async (_e, rawUrl) => {
     analyzeUrl = photo[1] + 'video/' + photo[2];
   }
 
-  const args = ['-J', '--flat-playlist', '--no-warnings', '--playlist-end', '200', analyzeUrl];
+  const args = ['-J', '--no-warnings', '--playlist-end', '200', '--extractor-retries', '3', '--socket-timeout', '20', analyzeUrl];
   const json = await new Promise((resolve) => {
     execFile(t.ytdlp.path, args, { windowsHide: true, timeout: 120000, maxBuffer: 64 * 1024 * 1024 },
       (e, out, err) => resolve({ e, out, err }));
   });
   if (json.e) {
-    const errText = String(json.err || '');
+    const errText = [json.err, json.out, json.e && json.e.message].filter(Boolean).join('\n');
     const msg = errText.split(/\r?\n/).filter((l) => /ERROR/i.test(l)).pop()
       || errText.split(/\r?\n/).filter(Boolean).pop() || 'Gagal membaca link';
     let clean = msg.replace(/^ERROR:\s*/i, '');
@@ -528,9 +612,10 @@ ipcMain.handle('dl:analyze', async (_e, rawUrl) => {
   };
 });
 
-function dlFormatArgs(mode, quality) {
+function dlFormatArgs(mode, quality, hasFfmpeg) {
   if (mode === 'mp3') return ['-x', '--audio-format', 'mp3', '--audio-quality', '0'];
   const h = quality && quality !== 'best' ? `[height<=${quality}]` : '';
+  if (!hasFfmpeg) return ['-f', `best${h}[ext=mp4]/best${h}/best`];
   return [
     '-f', `bv*${h}[ext=mp4]+ba[ext=m4a]/b${h}[ext=mp4]/bv*${h}+ba/b${h}/b`,
     '--merge-output-format', 'mp4',
@@ -540,7 +625,7 @@ function dlFormatArgs(mode, quality) {
 function dlOne(item, i, total, opts) {
   return new Promise((resolve) => {
     const args = [
-      ...dlFormatArgs(opts.mode, opts.quality),
+      ...dlFormatArgs(opts.mode, opts.quality, !!opts.ffmpeg),
       '--no-playlist', '--newline', '--no-warnings',
       '-o', path.join(opts.dir, '%(title).150B [%(id)s].%(ext)s'),
     ];
@@ -983,13 +1068,17 @@ if (!app.requestSingleInstanceLock()) {
   app.on('second-instance', showWindow);
 
   app.whenReady().then(() => {
+    if ((readTools().settings || {}).saveSettings === false) {
+      writeConfig({
+        app: { master: 'RControl', panic: 'AppsKey', enabled: false, paused: false },
+        macros: [],
+      });
+      writeTools({ settings: { autostart: false, startHidden: false, accent: '#6c5ce7', saveSettings: false } });
+    }
     if (!fs.existsSync(CFG)) {
       writeConfig({
         app: { master: 'RControl', panic: 'AppsKey', enabled: false, paused: false },
-        macros: [
-          { trigger: 'XButton1', mode: 'toggle', action: 'key', value: 'q', cps: 0, enabled: true },
-          { trigger: 'XButton2', mode: 'hold', action: 'mouse', value: 'left', cps: 40, enabled: true },
-        ],
+        macros: [],
       });
     }
     // aplikasi dibuka = macro belum jalan, harus klik Run
